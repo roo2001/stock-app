@@ -368,12 +368,17 @@ async function handleAnalyze() {
     const systemPrompt = `
 당신은 대한민국 최고 수준의 전문 주식 리서치 애널리스트입니다.
 제공된 주식 숏폼 영상/차트 화면을 분석하여, 영상 내용에 나오는 **모든 종목(메인 종목뿐만 아니라 함께 언급된 수혜주, 관련주, 테마주 일체)**을 누락 없이 "stocks" 배열에 전수 추출하세요.
-특히 화자/유튜버가 **해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 수급, 캔들 지지 등)**를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
+
+[핵심 분석 및 날짜 추출 규칙]:
+1. **날짜(date) 최우선 추출 (가장 중요)**: 영상의 제목, 자막, 화면 텍스트, 칠판, 차트 화면 상단에 표기된 날짜(예: "10월 16일", "10.16-금", "10/17", "10.15-목" 등)를 반드시 최우선으로 정밀 감지하여 해당 일자를 "YYYY-MM-DD" 형식으로 "date"에 입력하세요. 만약 연도가 없으면 현재 연도(2026년 또는 2024년)를 붙여 "YYYY-MM-DD"로 완성하세요. 영상 내에 날짜 단서가 전혀 없을 때에만 오늘 기준일(${todayStr})을 사용하세요.
+2. **추천 이유(reason)**: 화자/유튜버가 해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 북미 수출, 수급, 캔들 지지 등)를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
+3. **업종(sector)**: 한국거래소 공식 업종명(전기장비, 반도체, 통신장비, 제약바이오, 2차전지 등)을 정확히 기재하세요. '일반' 같은 모호한 단어는 금지합니다.
+
 반드시 아래 순수 JSON 형식으로만 응답하세요. (마크다운 코드블록 제외)
 
 JSON 스키마:
 {
-  "date": "YYYY-MM-DD (영상 속 날짜 또는 ${todayStr})",
+  "date": "영상 속에서 감지된 날짜 YYYY-MM-DD (예: 2026-10-16)",
   "trading_type": "단기스윙 / 단타 / 중장기 / 테마주 중 1개",
   "sentiment": "긍정·매수 / 중립·관망 / 매도·주의 중 1개",
   "stocks": [
@@ -381,7 +386,7 @@ JSON 스키마:
       "name": "종목명 (예: 산일전기)",
       "code": "6자리 공식종목코드 (예: 062040)",
       "theme": "테마명 (예: 변압기/전력망)",
-      "sector": "공식 업종분류 (예: 전기장비, 반도체, 통신장비, 제약바이오, 2차전지 등)",
+      "sector": "공식 업종분류 (예: 전기장비, 반도체, 통신장비, 제약바이오 등)",
       "current_price": "영상 속 가격 또는 현재 추정 시세 (숫자만, 예: 188800)",
       "trade_value": "추정 거래대금 (억원 단위 숫자, 예: 850)",
       "support": "지지선 가격 (예: 180,000원 또는 미제시)",
@@ -405,7 +410,7 @@ JSON 스키마:
     parts.push({ text: systemPrompt });
 
     if (isLinkMode) {
-      parts.push({ text: `분석할 주식 쇼츠 영상 링크: ${url}\n오늘 날짜: ${todayStr}\n영상에 언급된 모든 종목과 각 종목별 추천 이유를 빠짐없이 전수 추출하여 JSON으로 요약해 주세요.` });
+      parts.push({ text: `분석할 주식 쇼츠 영상 링크: ${url}\n오늘 기준일: ${todayStr}\n영상 제목이나 내용, 자막에 언급된 날짜를 최우선으로 찾아 'date'에 넣고, 언급된 모든 종목과 추천 이유를 빠짐없이 전수 추출하여 JSON으로 요약해 주세요.` });
     } else {
       parts.push({
         inlineData: {
@@ -413,7 +418,7 @@ JSON 스키마:
           data: currentUploadedBase64
         }
       });
-      parts.push({ text: `첨부된 주식 차트/영상 화면을 분석하여 화면에 나타난 모든 종목과 추천 이유, 투자 전략을 도출해 주세요. 오늘 날짜: ${todayStr}` });
+      parts.push({ text: `첨부된 주식 차트/영상 화면을 분석해 주세요. 특히 화면 상단이나 자막에 표기된 날짜(예: 10.16, 10/17 등)를 최우선으로 감지하여 'date'에 정확히 반영하고, 화면에 나타난 모든 종목과 추천 이유를 도출해 주세요. 오늘 기준일: ${todayStr}` });
     }
 
     const modelCandidates = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
@@ -470,11 +475,39 @@ JSON 스키마:
   }
 }
 
+// 날짜 정규화 함수 (10.16-금, 10/16, 2026.10.16 등 다양한 표기를 YYYY-MM-DD로 표준화)
+function normalizeDate(str) {
+  if (!str) return new Date().toISOString().split('T')[0];
+  const cleaned = String(str).trim();
+  const m1 = cleaned.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+  if (m1) {
+    return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
+  }
+  const m2 = cleaned.match(/(\d{1,2})[월.-/]\s*(\d{1,2})/);
+  if (m2) {
+    const year = new Date().getFullYear();
+    return `${year}-${String(m2[1]).padStart(2, '0')}-${String(m2[2]).padStart(2, '0')}`;
+  }
+  return cleaned;
+}
+
 // 결과 렌더링 (다중 종목 및 추천 이유 카드)
 function renderAnalysisResult(res) {
   const resultCard = document.getElementById('resultCard');
+  res.date = normalizeDate(res.date);
 
-  document.getElementById('resDateBadge').innerText = `📅 ${res.date || '오늘'}`;
+  const dateBadge = document.getElementById('resDateBadge');
+  dateBadge.innerText = `📅 ${res.date}`;
+  dateBadge.style.cursor = 'pointer';
+  dateBadge.title = '클릭하여 날짜 직접 변경 가능';
+  dateBadge.onclick = () => {
+    const custom = prompt('등록할 날짜를 입력하세요 (예: 2026-10-16 또는 10.16):', res.date);
+    if (custom) {
+      res.date = normalizeDate(custom);
+      dateBadge.innerText = `📅 ${res.date}`;
+    }
+  };
+
   document.getElementById('resTypeBadge').innerText = res.trading_type || '스윙';
   
   const sentBadge = document.getElementById('resSentimentBadge');
