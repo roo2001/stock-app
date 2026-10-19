@@ -20,8 +20,10 @@ const MASTER_STOCK_INFO = {
   '대한전선': { theme: '해저케이블', code: '001440', sector: '전기장비', price: 14200, change: 350, rate: 2.53, volume: 3100000, tradeValue: 440, foreign: '+12만', inst: '+3.5만', reason: '당진 해저케이블 1공장 1단계 준공 및 해상풍력 수주 가시화' },
   '인텍플러스': { theme: '반도체/CXL', code: '064290', sector: '반도체장비', price: 28500, change: 1200, rate: 4.39, volume: 850000, tradeValue: 240, foreign: '+1.8만', inst: '+3.2만', reason: '글로벌 빅테크향 첨단 패키징 검사장비 독점 공급 및 CXL 테마 모멘텀' },
   '오킨스전자': { theme: 'CXL소켓', code: '080580', sector: '반도체부품', price: 8450, change: 350, rate: 4.32, volume: 1200000, tradeValue: 100, foreign: '+5.2천', inst: '+1.1만', reason: '차세대 CXL 메모리 인터페이스 테스트 소켓 국산화 및 공급 가시화' },
-  '삼아알미늄': { theme: '2차전지양극박', code: '006110', sector: '금속가공', price: 36200, change: 1100, rate: 3.13, volume: 420000, tradeValue: 150, foreign: '+2.1만', inst: '+4.5천', reason: '글로벌 배터리 제조사향 하이니켈 양극박 장기 공급 계약 수혜' },
-  'TCC스틸': { theme: '원통형배터리캔', code: '002710', sector: '철강금속', price: 38400, change: 1400, rate: 3.78, volume: 780000, tradeValue: 300, foreign: '+4.5만', inst: '+1.8만', reason: '4680 원통형 배터리용 니켈도금강판 전용 라인 증설 및 독점적 시장 지위' }
+  '삼아알미늄': { theme: '2차전지양극박', code: '006110', sector: '비철금속', price: 36200, change: 1100, rate: 3.13, volume: 420000, tradeValue: 150, foreign: '+2.1만', inst: '+4.5천', reason: '글로벌 배터리 제조사향 하이니켈 양극박 장기 공급 계약 수혜' },
+  'TCC스틸': { theme: '원통형배터리캔', code: '002710', sector: '철강금속', price: 38400, change: 1400, rate: 3.78, volume: 780000, tradeValue: 300, foreign: '+4.5만', inst: '+1.8만', reason: '4680 원통형 배터리용 니켈도금강판 전용 라인 증설 및 독점적 시장 지위' },
+  'SFA반도체': { theme: '반도체 패키징/서버DDR5', code: '036540', sector: '반도체', price: 49125, change: 1500, rate: 3.09, volume: 1250000, tradeValue: 114, foreign: '+1.5만', inst: '+8천', reason: '저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입' },
+  '빗샘전자': { theme: '광통신/AI데이터센터', code: '072950', sector: '통신장비', price: 50546, change: 1500, rate: 3.09, volume: 1200000, tradeValue: 111, foreign: '+1.5만', inst: '+8천', reason: 'AI 데이터센터 확산에 따른 광통신 관련주 부각' }
 };
 
 // 업종 자동 유추 함수 (마스터나 AI 응답에 업종이 없을 때 '일반' 대신 정확한 산업군 추론)
@@ -39,7 +41,7 @@ function guessSector(theme = '', name = '') {
   if (combined.includes('원전') || combined.includes('원자력') || combined.includes('smr') || combined.includes('엔지니어링')) {
     return '전력/엔지니어링';
   }
-  if (combined.includes('2차전지') || combined.includes('배터리') || combined.includes('양극재') || combined.includes('음극재')) {
+  if (combined.includes('2차전지') || combined.includes('배터리') || combined.includes('양극재') || combined.includes('음극재') || combined.includes('알루미늄')) {
     return '화학/2차전지';
   }
   if (combined.includes('바이오') || combined.includes('제약') || combined.includes('임상') || combined.includes('항체')) {
@@ -102,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExcelWatchlist();
   });
 
-  // 기기 간 동기화 버튼 (카톡 링크 복사 또는 클라우드 갱신)
+  // 기기 간 동기화 버튼 (클라우드 안전 병합 동기화)
   const btnSync = document.getElementById('btnSyncCloud');
   if (btnSync) btnSync.addEventListener('click', handleSyncCloud);
 
@@ -143,35 +145,43 @@ function checkUrlSync() {
   }
 }
 
+// 안전한 클라우드 동기화 (기존 종목 삭제 없이 누락된 클라우드 종목과 완전 병합)
 async function handleSyncCloud() {
-  const choice = confirm("기기 동기화 방식을 선택해 주세요:\n\n[확인] : 📱 휴대폰으로 보낼 '카톡 동기화 링크' 복사\n[취소] : ☁️ 최신 클라우드 종목(SFA반도체 등)으로 지금 기기 갱신");
-  if (choice) {
-    const list = getWatchlist();
-    if (list.length === 0) {
-      alert('동기화할 종목이 없습니다.');
-      return;
-    }
-    const encoded = btoa(encodeURIComponent(JSON.stringify(list)));
-    const syncUrl = `${window.location.origin}${window.location.pathname}?sync=${encoded}`;
-    navigator.clipboard.writeText(syncUrl).then(() => {
-      alert("📋 [카톡 동기화 링크 복사 완료!]\n\n카카오톡 '나에게 보내기'로 이 링크를 전송한 뒤, 스마트폰에서 링크를 터치하기만 하면 PC의 종목들이 휴대폰으로 즉시 100% 동기화됩니다!");
-    }).catch(() => {
-      prompt('아래 링크를 복사하여 스마트폰 카카오톡으로 보내세요:', syncUrl);
+  const btnSync = document.getElementById('btnSyncCloud');
+  const originText = btnSync ? btnSync.textContent : '☁️ 클라우드 동기화';
+  if (btnSync) btnSync.textContent = '⏳ 동기화 중...';
+
+  try {
+    const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+    if (!resp.ok) throw new Error('클라우드 데이터를 불러오지 못했습니다.');
+    
+    const cloudList = await resp.json();
+    const currentList = getWatchlist();
+    
+    // 안전한 병합(Merge): date와 name을 키로 하여 중복 방지 및 누락 종목 완벽 합침
+    const itemMap = new Map();
+    // 1) 클라우드 최신 목록 등록
+    cloudList.forEach(item => {
+      const key = `${item.date || ''}_${item.name}`;
+      itemMap.set(key, item);
     });
-  } else {
-    try {
-      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
-      if (resp.ok) {
-        const cloudList = await resp.json();
-        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(cloudList));
-        renderExcelWatchlist();
-        alert(`☁️ 최신 클라우드 관심종목 (${cloudList.length}개)으로 성공적으로 갱신되었습니다!`);
-      } else {
-        alert('클라우드 데이터를 불러오지 못했습니다.');
+    // 2) 로컬에만 있는 사용자 추가 종목 보존
+    currentList.forEach(item => {
+      const key = `${item.date || ''}_${item.name}`;
+      if (!itemMap.has(key)) {
+        itemMap.set(key, item);
       }
-    } catch (e) {
-      alert('동기화 중 오류가 발생했습니다: ' + e.message);
-    }
+    });
+
+    const mergedList = Array.from(itemMap.values());
+    localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(mergedList));
+    renderExcelWatchlist();
+    
+    alert(`✅ 최신 클라우드 동기화 완료!\n총 ${mergedList.length}개 종목이 누락 없이 안전하게 갱신되었습니다.`);
+  } catch (e) {
+    alert('동기화 중 오류가 발생했습니다: ' + e.message);
+  } finally {
+    if (btnSync) btnSync.textContent = originText;
   }
 }
 
