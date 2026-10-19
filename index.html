@@ -42,12 +42,42 @@
     <!-- 1. 쇼츠·틱톡 요약 탭 -->
     <section id="tabShorts" class="tab-pane active">
       <div class="card input-card">
-        <label for="videoUrlInput" class="input-label">📌 틱톡(TikTok) 또는 유튜브 쇼츠 링크</label>
-        <div class="input-group">
-          <input type="url" id="videoUrlInput" placeholder="여기에 링크를 붙여넣으세요 (vt.tiktok.com 또는 youtube.com/shorts)" autocomplete="off">
-          <button id="btnPaste" class="btn-sub">붙여넣기</button>
+        <!-- 업로드 방식 선택 서브 탭 -->
+        <div class="sub-nav">
+          <button class="sub-tab-btn active" id="subTabLink">🔗 링크 입력</button>
+          <button class="sub-tab-btn" id="subTabFile">📁 영상·이미지 파일</button>
         </div>
-        <div class="action-row">
+
+        <!-- 방식 1: 링크 입력 -->
+        <div id="inputLinkSection">
+          <label for="videoUrlInput" class="input-label">📌 틱톡(TikTok) 또는 유튜브 쇼츠 링크</label>
+          <div class="input-group">
+            <input type="url" id="videoUrlInput" placeholder="여기에 링크를 붙여넣으세요 (vt.tiktok.com 등)" autocomplete="off">
+            <button id="btnPaste" class="btn-sub">붙여넣기</button>
+          </div>
+        </div>
+
+        <!-- 방식 2: 파일 업로드 -->
+        <div id="inputFileSection" class="hidden">
+          <label class="input-label">📸 주식 차트 사진 또는 쇼츠 동영상 파일 (.mp4, .png, .jpg 등)</label>
+          <div class="drop-zone" id="dropZone">
+            <input type="file" id="mediaFileInput" accept="image/*,video/*" class="hidden-file-input">
+            <div class="drop-content" id="dropContent">
+              <span class="drop-icon">🖼️</span>
+              <p class="drop-text">여기를 터치하여 <b>사진/동영상</b>을 선택하세요</p>
+              <span class="drop-hint">차트 캡처본, 호가창 화면, 쇼츠 영상 모두 지원</span>
+            </div>
+            <!-- 미리보기 -->
+            <div id="previewContainer" class="preview-container hidden">
+              <img id="imagePreview" class="preview-media hidden" alt="미리보기">
+              <video id="videoPreview" class="preview-media hidden" controls playsinline></video>
+              <div id="fileInfoText" class="file-info-text"></div>
+              <button id="btnRemoveFile" class="btn-remove-file" title="파일 삭제">&times; 파일 제거</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row" style="margin-top: 14px;">
           <button id="btnAnalyze" class="btn-primary">🚀 AI 10초 요약 시작</button>
         </div>
       </div>
@@ -103,7 +133,14 @@
     <!-- 2. 관심종목 탭 -->
     <section id="tabWatchlist" class="tab-pane">
       <div class="watchlist-controls">
-        <span class="watchlist-title">실시간 관심종목</span>
+        <div class="sort-selector">
+          <label for="sortOrderSelect">정렬:</label>
+          <select id="sortOrderSelect">
+            <option value="dateDesc" selected>📅 최신 날짜순</option>
+            <option value="dateAsc">📅 과거 날짜순</option>
+            <option value="nameAsc">가나다순</option>
+          </select>
+        </div>
         <button id="btnOpenAddModal" class="btn-sub">+ 직접 추가</button>
       </div>
       <div id="watchlistContainer" class="watchlist-grid">
