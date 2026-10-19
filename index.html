@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>주식 쇼츠 AI 비서</title>
+  
+  <!-- PWA 설정 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="https://img.icons8.com/fluent/192/bullish.png">
+  <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
+
+  <!-- 스타일시트 -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- 상단 네비게이션 -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="logo-icon">📈</span>
+      <h1 class="logo-title">주식 쇼츠 AI</h1>
+    </div>
+    <div class="header-right">
+      <button id="btnSettings" class="icon-btn" title="설정">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 메인 탭 전환 버튼 -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="tabShorts">🎬 쇼츠·틱톡 요약</button>
+    <button class="tab-btn" data-tab="tabWatchlist">📊 내 관심종목 (<span id="stockCount">0</span>)</button>
+  </nav>
+
+  <!-- 컨텐츠 영역 -->
+  <main class="main-content">
+    
+    <!-- 1. 쇼츠·틱톡 요약 탭 -->
+    <section id="tabShorts" class="tab-pane active">
+      <div class="card input-card">
+        <label for="videoUrlInput" class="input-label">📌 틱톡(TikTok) 또는 유튜브 쇼츠 링크</label>
+        <div class="input-group">
+          <input type="url" id="videoUrlInput" placeholder="여기에 링크를 붙여넣으세요 (vt.tiktok.com 또는 youtube.com/shorts)" autocomplete="off">
+          <button id="btnPaste" class="btn-sub">붙여넣기</button>
+        </div>
+        <div class="action-row">
+          <button id="btnAnalyze" class="btn-primary">🚀 AI 10초 요약 시작</button>
+        </div>
+      </div>
+
+      <!-- 로딩 인디케이터 -->
+      <div id="loadingBox" class="loading-box hidden">
+        <div class="spinner"></div>
+        <p id="loadingStatusText">구글 Gemini 클라우드 AI가 영상을 분석 중입니다...</p>
+      </div>
+
+      <!-- 분석 결과 카드 -->
+      <div id="resultCard" class="card result-card hidden">
+        <div class="result-header">
+          <div class="badge-row">
+            <span id="resDateBadge" class="badge badge-date">📅 2026-10-19</span>
+            <span id="resTypeBadge" class="badge badge-type">단기 스윙</span>
+            <span id="resSentimentBadge" class="badge badge-buy">긍정·매수</span>
+          </div>
+          <h2 id="resStockTitle" class="stock-title">삼성전자 (005930)</h2>
+        </div>
+
+        <div class="summary-section">
+          <h3>💡 핵심 3줄 요약</h3>
+          <ul id="resSummaryList" class="summary-list"></ul>
+        </div>
+
+        <div class="level-grid">
+          <div class="level-item">
+            <span class="level-label">지지선</span>
+            <span id="resSupport" class="level-val">-</span>
+          </div>
+          <div class="level-item">
+            <span class="level-label">저항선</span>
+            <span id="resResistance" class="level-val">-</span>
+          </div>
+          <div class="level-item">
+            <span class="level-label">목표가</span>
+            <span id="resTarget" class="level-val target-val">-</span>
+          </div>
+          <div class="level-item">
+            <span class="level-label">손절선</span>
+            <span id="resStopLoss" class="level-val stop-val">-</span>
+          </div>
+        </div>
+
+        <div class="btn-group-row">
+          <button id="btnAddToWatchlist" class="btn-action btn-add">📥 내 관심종목에 추가</button>
+          <button id="btnCopyReport" class="btn-action btn-copy">📋 리포트 복사</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 관심종목 탭 -->
+    <section id="tabWatchlist" class="tab-pane">
+      <div class="watchlist-controls">
+        <span class="watchlist-title">실시간 관심종목</span>
+        <button id="btnOpenAddModal" class="btn-sub">+ 직접 추가</button>
+      </div>
+      <div id="watchlistContainer" class="watchlist-grid">
+        <!-- 자바스크립트로 종목 카드 동적 렌더링 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 설정 모달 -->
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚙️ 구글 Gemini AI 키 설정</h3>
+        <button id="btnCloseModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="guide-text">
+          PC 전원이 꺼져 있어도 스마트폰에서 24시간 동작하려면 구글의 <b>무료 Gemini API 키</b>가 필요합니다. (신용카드 등록 없이 1분 만에 무료 발급)
+        </p>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link-btn">🔗 무료 API 키 받으러 가기 (Google AI Studio)</a>
+        
+        <label for="apiKeyInput" class="input-label" style="margin-top:15px;">Google Gemini API Key</label>
+        <input type="password" id="apiKeyInput" placeholder="AIzaSy... 형식의 키 입력">
+        
+        <button id="btnSaveKey" class="btn-primary" style="margin-top:15px; width:100%;">저장하기</button>
+        <p class="caption-text">※ 입력하신 키는 외부 서버로 전송되지 않고 내 휴대폰 브라우저에만 안전하게 저장됩니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 직접 종목 추가 모달 -->
+  <div id="addModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>➕ 관심종목 직접 추가</h3>
+        <button id="btnCloseAddModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="input-label">종목명</label>
+        <input type="text" id="addStockName" placeholder="예: SK하이닉스, 에코프로">
+        
+        <label class="input-label" style="margin-top:10px;">종목코드 (선택)</label>
+        <input type="text" id="addStockCode" placeholder="예: 000660">
+        
+        <label class="input-label" style="margin-top:10px;">메모 / 매매전략</label>
+        <input type="text" id="addStockMemo" placeholder="예: 20일선 눌림목 반등 타점">
+        
+        <button id="btnConfirmAddStock" class="btn-primary" style="margin-top:15px; width:100%;">추가하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 자바스크립트 -->
+  <script src="app.js"></script>
+</body>
+</html>

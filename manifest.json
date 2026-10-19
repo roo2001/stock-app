@@ -1,0 +1,20 @@
+{
+  "name": "주식 쇼츠 AI 비서",
+  "short_name": "주식쇼츠",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/fluent/192/bullish.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.icons8.com/fluent/512/bullish.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
