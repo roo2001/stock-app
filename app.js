@@ -2,10 +2,6 @@
 
 const STORAGE_KEY_API = 'stock_shorts_gemini_api_key';
 const STORAGE_KEY_WATCHLIST = 'stock_shorts_watchlist_items';
-const STORAGE_KEY_FIREBASE = 'stock_shorts_firebase_config';
-
-let firestoreDb = null;
-let firestoreUnsubscribe = null;
 
 // 종목 마스터 정밀 시세 및 추천 이유 데이터 (실제 엑셀 관심종목_실시간.xlsx 매핑)
 const MASTER_STOCK_INFO = {
@@ -77,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initFileUpload();
   initModals();
   initWatchlist();
-  initFirebase(); // 구글 Firebase 실시간 클라우드 DB 가동
   initPWA();
   startLiveStockTicker();
 
@@ -105,9 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExcelWatchlist();
   });
 
-  // 기기 간 동기화 버튼 (클라우드 안전 병합 동기화)
-  const btnSync = document.getElementById('btnSyncCloud');
-  if (btnSync) btnSync.addEventListener('click', handleSyncCloud);
+  // 기기 간 동기화 버튼 (스마트폰 ↔ PC 관심종목 원클릭 동기화)
+  const btnSync = document.getElementById('btnSyncDevices');
+  if (btnSync) btnSync.addEventListener('click', handleDeviceSync);
 
   // CSV 내보내기 버튼 (엑셀/구글시트 호환)
   const btnCsv = document.getElementById('btnExportCsv');
@@ -123,207 +118,79 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// URL을 통한 기기 간 동기화 파라미터 감지 (?setup=... 또는 ?sync=...)
+// ==========================================
+// 1-B. 스마트폰 ↔ PC 원클릭 기기 동기화 엔진
+// ==========================================
 checkUrlSync();
 
 function checkUrlSync() {
   const params = new URLSearchParams(window.location.search);
 
-  // 1. 스마트폰 원클릭 통합 설정 (?setup=...)
-  const setupData = params.get('setup');
-  if (setupData) {
-    try {
-      const decoded = decodeURIComponent(atob(setupData));
-      const setupObj = JSON.parse(decoded);
-      if (setupObj.apiKey) {
-        localStorage.setItem(STORAGE_KEY_API, setupObj.apiKey);
-      }
-      if (setupObj.firebaseConfig) {
-        localStorage.setItem(STORAGE_KEY_FIREBASE, typeof setupObj.firebaseConfig === 'string' ? setupObj.firebaseConfig : JSON.stringify(setupObj.firebaseConfig));
-      }
-      window.history.replaceState({}, document.title, window.location.pathname);
-      alert('🎉 [스마트폰 연동 100% 완료!]\n구글 Gemini AI 키와 Firebase 실시간 DB가 스마트폰에 안전하게 등록되었습니다.\n이제 스마트폰과 PC가 0.1초 만에 실시간 동기화됩니다!');
-      window.location.reload();
-      return;
-    } catch (err) {
-      console.warn('설정 동기화 파싱 오류:', err);
-    }
-  }
-
-  // 2. 단순 종목 리스트 동기화 (?sync=...)
+  // 1. 관심종목 원클릭 수신 및 안전 병합 (?sync=...)
   const syncData = params.get('sync');
   if (syncData) {
     try {
       const decoded = decodeURIComponent(atob(syncData));
-      const list = JSON.parse(decoded);
-      if (Array.isArray(list) && list.length > 0) {
-        if (confirm(`📲 다른 기기에서 보낸 관심종목 (${list.length}개)을 동기화할까요?`)) {
-          saveWatchlist(list);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          alert('✅ 관심종목이 성공적으로 동기화되었습니다!');
-        }
+      const incomingList = JSON.parse(decoded);
+      if (Array.isArray(incomingList) && incomingList.length > 0) {
+        const currentList = getWatchlist();
+        const itemMap = new Map();
+        // 새로 전송받은 종목 등록
+        incomingList.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          itemMap.set(key, item);
+        });
+        // 현재 기기에만 있는 기존 종목도 잃어버리지 않게 안전 보존
+        currentList.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          if (!itemMap.has(key)) {
+            itemMap.set(key, item);
+          }
+        });
+
+        const merged = Array.from(itemMap.values());
+        saveWatchlist(merged);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        alert(`🎉 [동기화 성공!]\n다른 기기에서 보낸 관심종목이 안전하게 합쳐졌습니다!\n(현재 총 ${merged.length}개 종목 감시 중)`);
+        return;
       }
     } catch (err) {
       console.warn('동기화 파싱 오류:', err);
     }
   }
-}
 
-// 안전한 클라우드 동기화 (기존 종목 삭제 없이 누락된 클라우드 종목과 완전 병합)
-async function handleSyncCloud() {
-  const btnSync = document.getElementById('btnSyncCloud');
-  const originText = btnSync ? btnSync.textContent : '☁️ 클라우드 동기화';
-  if (btnSync) btnSync.textContent = '⏳ 동기화 중...';
-
-  try {
-    const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
-    if (!resp.ok) throw new Error('클라우드 데이터를 불러오지 못했습니다.');
-    
-    const cloudList = await resp.json();
-    const currentList = getWatchlist();
-    
-    // 안전한 병합(Merge): date와 name을 키로 하여 중복 방지 및 누락 종목 완벽 합침
-    const itemMap = new Map();
-    // 1) 클라우드 최신 목록 등록
-    cloudList.forEach(item => {
-      const key = `${item.date || ''}_${item.name}`;
-      itemMap.set(key, item);
-    });
-    // 2) 로컬에만 있는 사용자 추가 종목 보존
-    currentList.forEach(item => {
-      const key = `${item.date || ''}_${item.name}`;
-      if (!itemMap.has(key)) {
-        itemMap.set(key, item);
+  // 2. Gemini AI 키 간편 등록 (?key=...)
+  const keyData = params.get('key');
+  if (keyData) {
+    try {
+      const decodedKey = decodeURIComponent(atob(keyData));
+      if (decodedKey) {
+        localStorage.setItem(STORAGE_KEY_API, decodedKey);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        alert('🤖 [구글 Gemini AI 키 자동 등록 완료!]\n이제 스마트폰에서도 영상 분석 기능을 바로 사용하실 수 있습니다.');
       }
-    });
-
-    const mergedList = Array.from(itemMap.values());
-    saveWatchlist(mergedList);
-    
-    alert(`✅ 최신 클라우드 동기화 완료!\n총 ${mergedList.length}개 종목이 누락 없이 안전하게 갱신되었습니다.`);
-  } catch (e) {
-    alert('동기화 중 오류가 발생했습니다: ' + e.message);
-  } finally {
-    if (btnSync) btnSync.textContent = originText;
-  }
-}
-
-// ==========================================
-// 1-B. 구글 Firebase Firestore 실시간 엔진
-// ==========================================
-function parseFirebaseConfig(raw) {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-
-  // 1. 순수 JSON 파싱
-  try {
-    const obj = JSON.parse(trimmed);
-    if (obj.apiKey && obj.projectId) return obj;
-  } catch {}
-
-  // 2. JS 객체 리터럴 형식 ({ apiKey: "...", projectId: "..." })
-  try {
-    const match = trimmed.match(/\{[\s\S]*\}/);
-    if (match) {
-      const jsonLike = match[0]
-        .replace(/(\w+)\s*:/g, '"$1":')
-        .replace(/'/g, '"')
-        .replace(/,\s*\}/g, '}');
-      const obj = JSON.parse(jsonLike);
-      if (obj.apiKey && obj.projectId) return obj;
+    } catch (err) {
+      console.warn('키 등록 파싱 오류:', err);
     }
-  } catch {}
-
-  // 3. 정규식 추출
-  const apiKey = (trimmed.match(/apiKey["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-  const projectId = (trimmed.match(/projectId["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-  const authDomain = (trimmed.match(/authDomain["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-  const appId = (trimmed.match(/appId["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-  const storageBucket = (trimmed.match(/storageBucket["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-  const messagingSenderId = (trimmed.match(/messagingSenderId["']?\s*:\s*["']([^"']+)["']/) || [])[1];
-
-  if (apiKey && projectId) {
-    return { apiKey, projectId, authDomain, appId, storageBucket, messagingSenderId };
   }
-  return null;
 }
 
-function initFirebase() {
-  const raw = localStorage.getItem(STORAGE_KEY_FIREBASE);
-  if (!raw || typeof firebase === 'undefined') {
-    updateCloudStatusBadge(false);
-    return;
-  }
-  const config = parseFirebaseConfig(raw);
-  if (!config) {
-    updateCloudStatusBadge(false);
+// [📲 기기 동기화] 버튼 클릭: 현재 기기의 모든 종목을 담은 1초 전송 링크 생성
+function handleDeviceSync() {
+  const list = getWatchlist();
+  if (!list || list.length === 0) {
+    alert('동기화할 관심종목이 없습니다.');
     return;
   }
 
-  try {
-    if (!firebase.apps || firebase.apps.length === 0) {
-      firebase.initializeApp(config);
-    }
-    firestoreDb = firebase.firestore();
-    updateCloudStatusBadge(true);
-    startFirestoreRealtimeSync();
-    console.log('🔥 [Firebase] Firestore 실시간 DB 연결 성공!');
-  } catch (err) {
-    console.warn('Firebase 초기화 실패:', err);
-    updateCloudStatusBadge(false);
-  }
-}
+  const encoded = btoa(encodeURIComponent(JSON.stringify(list)));
+  const syncUrl = `${window.location.origin}${window.location.pathname}?sync=${encoded}`;
 
-function updateCloudStatusBadge(isOnline) {
-  const badge = document.getElementById('cloudStatusBadge');
-  if (!badge) return;
-  if (isOnline) {
-    badge.className = 'cloud-badge online';
-    badge.textContent = '🟢 실시간 DB (0.1초)';
-    badge.title = '구글 Firebase Firestore 실시간 동기화 가동 중 (PC-스마트폰 즉시 양방향 연동)';
-  } else {
-    badge.className = 'cloud-badge offline';
-    badge.textContent = '⚪ 로컬 모드';
-    badge.title = '설정(⚙️)에서 Firebase를 연동하면 기기간 실시간 자동 동기화가 활성화됩니다.';
-  }
-}
-
-function startFirestoreRealtimeSync() {
-  if (!firestoreDb) return;
-  if (firestoreUnsubscribe) firestoreUnsubscribe();
-
-  firestoreUnsubscribe = firestoreDb.collection('stock_watchlist').doc('master')
-    .onSnapshot(doc => {
-      if (doc.exists) {
-        const data = doc.data();
-        if (Array.isArray(data.items) && data.items.length > 0) {
-          console.log('🔥 [Firestore] 실시간 관심종목 수신:', data.items.length, '개');
-          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(data.items));
-          renderExcelWatchlist();
-        }
-      } else {
-        // Firestore 클라우드에 아직 데이터가 없다면 로컬 종목 13개를 클라우드로 최초 업로드
-        syncToFirestore();
-      }
-    }, err => {
-      console.warn('🔥 Firestore 리스너 오류:', err);
-      updateCloudStatusBadge(false);
-    });
-}
-
-async function syncToFirestore(items) {
-  if (!firestoreDb) return;
-  try {
-    const list = items || getWatchlist();
-    if (!list || list.length === 0) return;
-    await firestoreDb.collection('stock_watchlist').doc('master').set({
-      items: list,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    console.log('🔥 [Firestore] 클라우드 동기화 성공:', list.length, '개');
-  } catch (err) {
-    console.warn('🔥 Firestore 업로드 실패:', err);
-  }
+  navigator.clipboard.writeText(syncUrl).then(() => {
+    alert(`📋 [기기 동기화 링크 복사 완료!]\n\n카카오톡 '나에게 보내기'로 이 링크를 전송한 뒤, 다른 기기(PC 또는 스마트폰)에서 링크를 터치하기만 하면 폰과 PC의 종목들이 100% 누락 없이 안전하게 합쳐집니다!`);
+  }).catch(() => {
+    prompt('아래 링크를 복사하여 카카오톡 나에게 보내기로 전송하세요:', syncUrl);
+  });
 }
 
 // ==========================================
@@ -490,57 +357,29 @@ function initModals() {
 
   document.getElementById('btnSaveKey').addEventListener('click', () => {
     const key = document.getElementById('apiKeyInput').value.trim();
-    const fbText = document.getElementById('firebaseConfigInput')?.value.trim();
-
-    let updatedMsg = [];
     if (key) {
       localStorage.setItem(STORAGE_KEY_API, key);
-      updatedMsg.push('🤖 Gemini API 키');
-    }
-    if (fbText) {
-      const parsed = parseFirebaseConfig(fbText);
-      if (parsed) {
-        localStorage.setItem(STORAGE_KEY_FIREBASE, JSON.stringify(parsed));
-        initFirebase();
-        updatedMsg.push('🔥 Firebase 실시간 DB');
-      } else {
-        alert('⚠️ Firebase 설정 형식을 확인해 주세요.\n(const firebaseConfig = { ... } 또는 JSON)');
-        return;
-      }
-    }
-
-    settingsModal.classList.add('hidden');
-    if (updatedMsg.length > 0) {
-      alert(`✅ [저장 완료]\n${updatedMsg.join(', ')}가 성공적으로 설정되었습니다!\n스마트폰과 PC가 이제 실시간으로 자동 동기화됩니다.`);
+      settingsModal.classList.add('hidden');
+      alert('✅ 구글 Gemini API 키가 성공적으로 저장되었습니다!');
     } else {
-      alert('설정된 내용이 없습니다.');
+      alert('API 키를 입력해 주세요.');
     }
   });
 
-  // 스마트폰 1초 원클릭 동기화 링크 복사 버튼
-  const btnCopySetup = document.getElementById('btnCopySetupLink');
-  if (btnCopySetup) {
-    btnCopySetup.addEventListener('click', () => {
-      const apiKey = localStorage.getItem(STORAGE_KEY_API) || '';
-      const fbRaw = localStorage.getItem(STORAGE_KEY_FIREBASE) || '';
-
-      if (!apiKey && !fbRaw) {
-        alert('저장된 API 키나 Firebase 설정이 없습니다. 먼저 설정을 입력하고 저장해 주세요.');
+  const btnCopyKey = document.getElementById('btnCopyKeyLink');
+  if (btnCopyKey) {
+    btnCopyKey.addEventListener('click', () => {
+      const key = localStorage.getItem(STORAGE_KEY_API) || document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        alert('저장된 API 키가 없습니다. 먼저 API 키를 입력해 주세요.');
         return;
       }
-
-      const payload = {
-        apiKey: apiKey,
-        firebaseConfig: fbRaw ? JSON.parse(fbRaw) : null
-      };
-
-      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
-      const setupUrl = `${window.location.origin}${window.location.pathname}?setup=${encoded}`;
-
-      navigator.clipboard.writeText(setupUrl).then(() => {
-        alert('📋 [스마트폰 원클릭 설정 링크 복사 완료!]\n\n카카오톡 "나에게 보내기"로 이 링크를 전송한 뒤, 스마트폰에서 링크를 터치하기만 하면 PC의 구글 AI 키와 Firebase 실시간 DB가 스마트폰에 즉시 100% 자동 등록됩니다!');
+      const encoded = btoa(encodeURIComponent(key));
+      const keyUrl = `${window.location.origin}${window.location.pathname}?key=${encoded}`;
+      navigator.clipboard.writeText(keyUrl).then(() => {
+        alert('📋 [스마트폰 키 등록 링크 복사 완료!]\n\n카카오톡 "나에게 보내기"로 전송 후 스마트폰에서 링크를 누르시면 API 키가 1초 만에 자동 등록됩니다.');
       }).catch(() => {
-        prompt('아래 링크를 복사하여 스마트폰 카카오톡으로 보내세요:', setupUrl);
+        prompt('아래 링크를 카카오톡으로 전송하세요:', keyUrl);
       });
     });
   }
@@ -585,15 +424,6 @@ function initModals() {
 function showSettingsModal() {
   const input = document.getElementById('apiKeyInput');
   if (input) input.value = getApiKey() || '';
-  const fbInput = document.getElementById('firebaseConfigInput');
-  if (fbInput) {
-    const savedFb = localStorage.getItem(STORAGE_KEY_FIREBASE);
-    try {
-      fbInput.value = savedFb ? JSON.stringify(JSON.parse(savedFb), null, 2) : '';
-    } catch {
-      fbInput.value = savedFb || '';
-    }
-  }
   document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -983,9 +813,6 @@ async function initWatchlist() {
 function saveWatchlist(list) {
   localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
   renderExcelWatchlist();
-  if (firestoreDb) {
-    syncToFirestore(list);
-  }
 }
 
 function getWatchlist() {
