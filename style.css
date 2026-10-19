@@ -861,7 +861,20 @@ input:focus {
   font-weight: 600;
 }
 
-/* 당일봉 시각화 (L █ H) */
+/* 영웅문 HTS 스타일 L일봉H 캔들 */
+.hts-candle-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+}
+
+.hts-candle-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
 .candle-bar-container {
   display: inline-block;
   width: 64px;
