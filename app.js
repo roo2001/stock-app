@@ -17,7 +17,11 @@ const MASTER_STOCK_INFO = {
   '한국전력기술': { theme: '원자력', code: '052690', sector: '엔지니어링', price: 74200, change: 1800, rate: 2.49, volume: 310000, tradeValue: 230, foreign: '+5.4천', inst: '+8.2천', reason: '체코 원전 수주 본계약 체결 기대감 및 SMR 설계 역량' },
   '일진전기': { theme: '초고압변압기', code: '103590', sector: '전기장비', price: 27800, change: 1100, rate: 4.12, volume: 1250000, tradeValue: 350, foreign: '+1.5만', inst: '+6.2천', reason: '홍성 공장 초고압 변압기 증설 가동 및 북미 수출 본격화' },
   '대원전선': { theme: '전선/전력망', code: '006340', sector: '전기장비', price: 3850, change: 120, rate: 3.22, volume: 5400000, tradeValue: 210, foreign: '+8.4만', inst: '+1.2천', reason: '미국 주요 전력청 납품 이력 및 초고압 케이블 수출 확대' },
-  '대한전선': { theme: '해저케이블', code: '001440', sector: '전기장비', price: 14200, change: 350, rate: 2.53, volume: 3100000, tradeValue: 440, foreign: '+12만', inst: '+3.5만', reason: '당진 해저케이블 1공장 1단계 준공 및 해상풍력 수주 가시화' }
+  '대한전선': { theme: '해저케이블', code: '001440', sector: '전기장비', price: 14200, change: 350, rate: 2.53, volume: 3100000, tradeValue: 440, foreign: '+12만', inst: '+3.5만', reason: '당진 해저케이블 1공장 1단계 준공 및 해상풍력 수주 가시화' },
+  '인텍플러스': { theme: '반도체/CXL', code: '064290', sector: '반도체장비', price: 28500, change: 1200, rate: 4.39, volume: 850000, tradeValue: 240, foreign: '+1.8만', inst: '+3.2만', reason: '글로벌 빅테크향 첨단 패키징 검사장비 독점 공급 및 CXL 테마 모멘텀' },
+  '오킨스전자': { theme: 'CXL소켓', code: '080580', sector: '반도체부품', price: 8450, change: 350, rate: 4.32, volume: 1200000, tradeValue: 100, foreign: '+5.2천', inst: '+1.1만', reason: '차세대 CXL 메모리 인터페이스 테스트 소켓 국산화 및 공급 가시화' },
+  '삼아알미늄': { theme: '2차전지양극박', code: '006110', sector: '금속가공', price: 36200, change: 1100, rate: 3.13, volume: 420000, tradeValue: 150, foreign: '+2.1만', inst: '+4.5천', reason: '글로벌 배터리 제조사향 하이니켈 양극박 장기 공급 계약 수혜' },
+  'TCC스틸': { theme: '원통형배터리캔', code: '002710', sector: '철강금속', price: 38400, change: 1400, rate: 3.78, volume: 780000, tradeValue: 300, foreign: '+4.5만', inst: '+1.8만', reason: '4680 원통형 배터리용 니켈도금강판 전용 라인 증설 및 독점적 시장 지위' }
 };
 
 // 업종 자동 유추 함수 (마스터나 AI 응답에 업종이 없을 때 '일반' 대신 정확한 산업군 추론)
