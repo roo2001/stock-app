@@ -977,6 +977,9 @@ async function initWatchlist() {
     });
   }
 
+  saveWatchlist(list);
+}
+
 function saveWatchlist(list) {
   localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
   renderExcelWatchlist();
