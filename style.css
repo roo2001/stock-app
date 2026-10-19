@@ -285,22 +285,59 @@ body {
 
 .input-group {
   display: flex;
+  align-items: stretch;
   gap: 8px;
   margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 input[type="url"],
 input[type="text"],
 input[type="password"] {
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   background-color: var(--bg-sub);
   border: 1px solid var(--border-color);
   color: var(--text-main);
   padding: 12px 14px;
   border-radius: 10px;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   outline: none;
   transition: border-color 0.2s;
+}
+
+.btn-secondary {
+  flex-shrink: 0;
+  background-color: var(--bg-sub);
+  border: 1px solid var(--border-color);
+  color: #93c5fd;
+  padding: 0 16px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent-blue);
+  color: #ffffff;
+}
+
+.btn-secondary:active {
+  background-color: var(--accent-blue);
+  color: #ffffff;
+  transform: scale(0.97);
 }
 
 input:focus {
@@ -899,3 +936,43 @@ input:focus {
   display: none !important;
 }
 
+/* 모바일 전용 반응형 레이아웃 보정 */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 10px 12px;
+  }
+  .card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+  .tab-nav {
+    padding: 6px 12px;
+    gap: 6px;
+  }
+  .tab-btn {
+    font-size: 0.88rem;
+    padding: 8px 0;
+  }
+  .input-group {
+    gap: 6px;
+  }
+  .btn-secondary {
+    padding: 0 12px;
+    font-size: 0.82rem;
+  }
+  input[type="url"],
+  input[type="text"],
+  input[type="password"] {
+    padding: 10px 12px;
+    font-size: 0.86rem;
+  }
+  .sort-selector {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .sort-selector select,
+  .sort-selector .btn-sub {
+    padding: 5px 8px;
+    font-size: 0.78rem;
+  }
+}

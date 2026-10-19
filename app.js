@@ -76,10 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initPWA();
   startLiveStockTicker();
 
-  if (!getApiKey()) {
-    showSettingsModal();
-  }
-
   // 붙여넣기 버튼
   document.getElementById('btnPaste').addEventListener('click', async () => {
     try {
