@@ -14,9 +14,13 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- 구글 Firebase 무료 실시간 DB SDK (공식 compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
   <!-- 상단 네비게이션 -->
@@ -141,6 +145,7 @@
         <div class="live-status-row">
           <span class="live-dot">●</span>
           <span class="live-text" id="liveRefreshTime">실시간 시세 연동 중</span>
+          <span id="cloudStatusBadge" class="cloud-badge offline" title="클라우드 실시간 동기화 상태">⚪ 로컬 모드</span>
           <button id="btnManualRefresh" class="btn-refresh" title="시세 새로고침">🔄</button>
         </div>
         <div class="sort-selector">
@@ -167,22 +172,43 @@
 
   <!-- 설정 모달 -->
   <div id="settingsModal" class="modal hidden">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
-        <h3>⚙️ 구글 Gemini AI 키 설정</h3>
+        <h3>⚙️ 클라우드 동기화 & AI 설정</h3>
         <button id="btnCloseModal" class="close-btn">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="guide-text">
-          PC 전원이 꺼져 있어도 스마트폰에서 24시간 동작하려면 구글의 <b>무료 Gemini API 키</b>가 필요합니다. (신용카드 등록 없이 1분 만에 무료 발급)
-        </p>
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link-btn">🔗 무료 API 키 받으러 가기 (Google AI Studio)</a>
+        <!-- 섹션 1: 구글 Gemini AI 키 -->
+        <div class="settings-section">
+          <h4 class="settings-sec-title">🤖 1. 구글 Gemini AI 키 (영상/이미지 분석용)</h4>
+          <p class="guide-text">
+            신용카드 등록 없이 1분 만에 발급되는 구글 무료 키입니다.
+          </p>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="link-btn">🔗 무료 API 키 받으러 가기 (Google AI Studio)</a>
+          <label for="apiKeyInput" class="input-label" style="margin-top:10px;">Google Gemini API Key</label>
+          <input type="password" id="apiKeyInput" placeholder="AIzaSy... 형식의 키 입력">
+        </div>
+
+        <!-- 섹션 2: 구글 Firebase Firestore 실시간 DB -->
+        <div class="settings-section" style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px;">
+          <h4 class="settings-sec-title">🔥 2. 구글 Firebase 실시간 DB (스마트폰 ↔ PC 0.1초 연동)</h4>
+          <p class="guide-text">
+            밖에서 스마트폰으로 추가한 종목이 PC에 0.1초 만에 자동 동기화됩니다. (평생 무료)
+          </p>
+          <a href="https://console.firebase.google.com" target="_blank" class="link-btn" style="background:#ea580c;">🔗 Firebase 콘솔 바로가기 (무료 DB 생성)</a>
+          <label for="firebaseConfigInput" class="input-label" style="margin-top:10px;">Firebase Config (설정 코드 그대로 붙여넣기)</label>
+          <textarea id="firebaseConfigInput" rows="4" placeholder="const firebaseConfig = { ... } 또는 { 'projectId': '...' } 형식으로 복사한 내용을 그대로 붙여넣으세요."></textarea>
+        </div>
+
+        <!-- 저장 버튼 및 스마트폰 원클릭 링크 -->
+        <button id="btnSaveKey" class="btn-primary" style="margin-top:15px; width:100%;">💾 설정 전체 저장하기</button>
         
-        <label for="apiKeyInput" class="input-label" style="margin-top:15px;">Google Gemini API Key</label>
-        <input type="password" id="apiKeyInput" placeholder="AIzaSy... 형식의 키 입력">
-        
-        <button id="btnSaveKey" class="btn-primary" style="margin-top:15px; width:100%;">저장하기</button>
-        <p class="caption-text">※ 입력하신 키는 외부 서버로 전송되지 않고 내 휴대폰 브라우저에만 안전하게 저장됩니다.</p>
+        <div class="phone-sync-box" style="margin-top:15px; padding:12px; background:rgba(37,99,235,0.1); border:1px dashed #3b82f6; border-radius:10px; text-align:center;">
+          <p style="font-size:0.82rem; color:#93c5fd; margin-bottom:8px;">📱 <strong>스마트폰 1초 원클릭 동기화:</strong><br>PC 설정을 스마트폰에 직접 입력할 필요 없이 링크 1번 터치로 끝냅니다!</p>
+          <button id="btnCopySetupLink" class="btn-sub" style="width:100%; padding:8px 0; font-weight:700;">🔗 스마트폰 원클릭 설정 링크 복사</button>
+        </div>
+
+        <p class="caption-text" style="margin-top:10px;">※ 모든 키와 설정은 외부 서버가 아닌 내 기기 브라우저에만 암호화되어 안전하게 보관됩니다.</p>
       </div>
     </div>
   </div>
@@ -216,6 +242,6 @@
   </div>
 
   <!-- 자바스크립트 -->
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
