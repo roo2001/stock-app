@@ -566,13 +566,242 @@ input:focus {
   margin-bottom: 12px;
 }
 
-.caption-text {
-  font-size: 0.75rem;
-  color: #6b7280;
-  margin-top: 10px;
-  line-height: 1.4;
+/* 다중 종목 칩 및 헤더 */
+.detected-stocks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
+
+.detected-stocks-header h3 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #60a5fa;
+}
+
+.btn-add-all {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.stocks-chip-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.multi-stock-card {
+  background-color: var(--bg-sub);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.multi-stock-info h4 {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.multi-stock-info p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.multi-stock-target {
+  font-size: 0.78rem;
+  color: #f87171;
+  font-weight: 600;
+}
+
+.btn-add-single {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 실시간 상태 바 */
+.live-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.live-dot {
+  color: #10b981;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+.btn-refresh {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.btn-refresh:hover {
+  background-color: var(--bg-sub);
+}
+
+/* 엑셀 스타일 요일별 실시간 테이블 */
+.excel-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.weekday-block {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.weekday-header {
+  background-color: #172554;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #93c5fd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1e3a8a;
+}
+
+.excel-scroll-area {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  min-width: 680px;
+}
+
+.excel-table th {
+  background-color: #0f172a;
+  color: #94a3b8;
+  padding: 9px 10px;
+  font-weight: 700;
+  text-align: right;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.excel-table th:first-child,
+.excel-table th:nth-child(2),
+.excel-table th:nth-child(3) {
+  text-align: left;
+}
+
+.excel-table td {
+  padding: 10px;
+  border-bottom: 1px solid #1e293b;
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.excel-table td:first-child,
+.excel-table td:nth-child(2),
+.excel-table td:nth-child(3) {
+  text-align: left;
+}
+
+.excel-table tr:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.theme-tag {
+  background-color: #1e3a8a;
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.stock-name-cell {
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.stock-code-cell {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-left: 2px;
+}
+
+.rate-up {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.rate-down {
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+.rate-flat {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* 당일봉 시각화 (L █ H) */
+.candle-bar-container {
+  display: inline-block;
+  width: 64px;
+  height: 8px;
+  background-color: #334155;
+  border-radius: 4px;
+  position: relative;
+  vertical-align: middle;
+}
+
+.candle-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 4px;
+}
+
+.candle-up { background-color: #ef4444; }
+.candle-down { background-color: #3b82f6; }
 
 .hidden {
   display: none !important;
 }
+

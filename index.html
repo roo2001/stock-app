@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -96,7 +96,12 @@
             <span id="resTypeBadge" class="badge badge-type">단기 스윙</span>
             <span id="resSentimentBadge" class="badge badge-buy">긍정·매수</span>
           </div>
-          <h2 id="resStockTitle" class="stock-title">삼성전자 (005930)</h2>
+          <div class="detected-stocks-header">
+            <h3>🏷️ 영상에서 포착된 종목 (<span id="detectedCount">0</span>개)</h3>
+            <button id="btnAddAllStocks" class="btn-add-all">📥 전체 종목 한번에 추가</button>
+          </div>
+          <!-- 다중 종목 칩 및 개별 카드 컨테이너 -->
+          <div id="resStocksList" class="stocks-chip-grid"></div>
         </div>
 
         <div class="summary-section">
@@ -124,27 +129,33 @@
         </div>
 
         <div class="btn-group-row">
-          <button id="btnAddToWatchlist" class="btn-action btn-add">📥 내 관심종목에 추가</button>
-          <button id="btnCopyReport" class="btn-action btn-copy">📋 리포트 복사</button>
+          <button id="btnCopyReport" class="btn-action btn-copy">📋 전체 분석 리포트 복사</button>
         </div>
       </div>
     </section>
 
-    <!-- 2. 관심종목 탭 -->
+    <!-- 2. 관심종목 탭 (엑셀 스타일 요일별 실시간 테이블) -->
     <section id="tabWatchlist" class="tab-pane">
       <div class="watchlist-controls">
+        <div class="live-status-row">
+          <span class="live-dot">●</span>
+          <span class="live-text" id="liveRefreshTime">실시간 시세 연동 중</span>
+          <button id="btnManualRefresh" class="btn-refresh" title="시세 새로고침">🔄</button>
+        </div>
         <div class="sort-selector">
           <label for="sortOrderSelect">정렬:</label>
           <select id="sortOrderSelect">
-            <option value="dateDesc" selected>📅 최신 날짜순</option>
-            <option value="dateAsc">📅 과거 날짜순</option>
+            <option value="dateDesc" selected>📅 최신 요일순</option>
+            <option value="dateAsc">📅 과거 요일순</option>
             <option value="nameAsc">가나다순</option>
           </select>
+          <button id="btnOpenAddModal" class="btn-sub">+ 종목 추가</button>
         </div>
-        <button id="btnOpenAddModal" class="btn-sub">+ 직접 추가</button>
       </div>
-      <div id="watchlistContainer" class="watchlist-grid">
-        <!-- 자바스크립트로 종목 카드 동적 렌더링 -->
+
+      <!-- 엑셀 양식 요일별 테이블 렌더링 컨테이너 -->
+      <div id="excelWatchlistContainer" class="excel-table-wrapper">
+        <!-- 자바스크립트로 엑셀 테이블 동적 렌더링 -->
       </div>
     </section>
 
@@ -195,6 +206,6 @@
   </div>
 
   <!-- 자바스크립트 -->
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
