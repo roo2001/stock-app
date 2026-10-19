@@ -59,6 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExcelWatchlist();
   });
 
+  // CSV 내보내기 버튼 (엑셀/구글시트 호환)
+  const btnCsv = document.getElementById('btnExportCsv');
+  if (btnCsv) btnCsv.addEventListener('click', exportToCsv);
+
+  // 옵시디언/노션/카톡용 매매일지 복사 버튼
+  const btnMd = document.getElementById('btnExportMarkdown');
+  if (btnMd) btnMd.addEventListener('click', exportToMarkdown);
+
   // 수동 새로고침 버튼
   document.getElementById('btnManualRefresh').addEventListener('click', () => {
     updateLivePrices(true);
@@ -218,6 +226,10 @@ function initModals() {
   document.getElementById('btnOpenAddModal').addEventListener('click', () => {
     document.getElementById('addStockName').value = '';
     document.getElementById('addStockCode').value = '';
+    const themeInput = document.getElementById('addStockTheme');
+    if (themeInput) themeInput.value = '';
+    const reasonInput = document.getElementById('addStockReason');
+    if (reasonInput) reasonInput.value = '';
     document.getElementById('addStockMemo').value = '';
     addModal.classList.remove('hidden');
   });
@@ -237,6 +249,8 @@ function initModals() {
   document.getElementById('btnConfirmAddStock').addEventListener('click', () => {
     const name = document.getElementById('addStockName').value.trim();
     const code = document.getElementById('addStockCode').value.trim();
+    const theme = document.getElementById('addStockTheme')?.value.trim();
+    const reason = document.getElementById('addStockReason')?.value.trim();
     const memo = document.getElementById('addStockMemo').value.trim();
 
     if (!name) {
@@ -248,7 +262,7 @@ function initModals() {
     const master = MASTER_STOCK_INFO[name] || {};
 
     addStockToStorage({
-      theme: master.theme || '직접등록',
+      theme: theme || master.theme || '직접등록',
       name,
       code: code || master.code || '000000',
       sector: master.sector || '일반',
@@ -261,7 +275,8 @@ function initModals() {
       inst: master.inst || '+8천',
       dayCandle: { left: 40, width: 30, up: (master.rate || 0) >= 0 },
       date: todayStr,
-      reason: memo || master.reason || '직접 추천 등록'
+      reason: reason || memo || master.reason || '직접 등록 종목',
+      memo: memo || ''
     });
     addModal.classList.add('hidden');
     renderExcelWatchlist();
@@ -540,13 +555,25 @@ ${currentAnalysis.summary_3lines?.map(s => '• ' + s).join('\n')}`;
 // ==========================================
 // 6. 엑셀 스타일 요일별 실시간 금융 테이블 & 데이터 보정
 // ==========================================
-function initWatchlist() {
+async function initWatchlist() {
   const saved = localStorage.getItem(STORAGE_KEY_WATCHLIST);
   let list = [];
   try {
     list = JSON.parse(saved) || [];
   } catch {
     list = [];
+  }
+
+  // 만약 비어있다면 watchlist.json 파일에서 로드 시도
+  if (list.length === 0) {
+    try {
+      const resp = await fetch('./watchlist.json');
+      if (resp.ok) {
+        list = await resp.json();
+      }
+    } catch (e) {
+      console.warn('watchlist.json fetch 실패, 내장 마스터 사용:', e);
+    }
   }
 
   // 기존에 저장된 데이터의 누락된 시세/거래대금/추천이유 마이그레이션(보정)
@@ -776,3 +803,101 @@ function initPWA() {
     });
   }
 }
+
+// ==========================================
+// 9. CSV 내보내기 & 옵시디언 매매일지 복사
+// ==========================================
+function exportToCsv() {
+  const list = getWatchlist();
+  if (list.length === 0) {
+    alert('내보낼 관심종목 데이터가 없습니다.');
+    return;
+  }
+
+  // UTF-8 BOM (\uFEFF) 추가하여 엑셀 한글 깨짐 방지
+  let csvContent = '\uFEFF';
+  const headers = ['등록일자', '요일', '테마', '종목명', '종목코드', '업종', '현재가(원)', '등락률(%)', '거래대금(억)', '외인순매수', '기관순매수', '추천이유', '메모'];
+  csvContent += headers.map(h => `"${h}"`).join(',') + '\r\n';
+
+  list.forEach(item => {
+    const d = item.date || '';
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    let dayStr = '';
+    try {
+      if (d) dayStr = dayNames[new Date(d).getDay()] + '요일';
+    } catch {}
+
+    const row = [
+      d,
+      dayStr,
+      item.theme || '추천',
+      item.name || '',
+      item.code || '',
+      item.sector || '',
+      item.price || 0,
+      item.rate !== undefined ? item.rate : 0,
+      item.tradeValue || 0,
+      item.foreign || '-',
+      item.inst || '-',
+      (item.reason || '').replace(/"/g, '""'),
+      (item.memo || '').replace(/"/g, '""')
+    ];
+    csvContent += row.map(v => `"${v}"`).join(',') + '\r\n';
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().split('T')[0];
+  a.href = url;
+  a.download = `주식쇼츠_관심종목_${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportToMarkdown() {
+  const list = getWatchlist();
+  if (list.length === 0) {
+    alert('복사할 관심종목 데이터가 없습니다.');
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  let md = `# 📊 주식 쇼츠 관심종목 매매일지 (${today})\n\n`;
+  md += `> 총 **${list.length}개 종목** 감시 중 (주식 쇼츠 AI 실시간 금융 분석)\n\n`;
+
+  const groups = {};
+  list.forEach(item => {
+    const d = item.date || today;
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(item);
+  });
+
+  Object.keys(groups).forEach(dateKey => {
+    md += `### 📅 ${getWeekdayLabel(dateKey)}\n\n`;
+    md += `| 테마 | 종목명 (코드) | 현재가 | 등락률 | 거래대금 | 외인 | 기관 | 💡 추천 이유 |\n`;
+    md += `| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
+
+    groups[dateKey].forEach(stock => {
+      const sign = (stock.rate || 0) >= 0 ? '+' : '';
+      const rateStr = `${sign}${stock.rate || 0}%`;
+      const priceStr = Number(stock.price || 0).toLocaleString() + '원';
+      const reasonStr = (stock.reason || stock.memo || '쇼츠 AI 추천').replace(/\|/g, '/');
+      md += `| ${stock.theme || '추천'} | **${stock.name}** (${stock.code || '-'}) | ${priceStr} | ${rateStr} | ${stock.tradeValue || 0}억 | ${stock.foreign || '-'} | ${stock.inst || '-'} | ${reasonStr} |\n`;
+    });
+    md += '\n';
+  });
+
+  navigator.clipboard.writeText(md).then(() => {
+    alert('📋 [마크다운 매매일지 복사 완료!]\n\n옵시디언(Obsidian), 노션(Notion), 카카오톡에 바로 붙여넣기(Ctrl+V)하세요!');
+  }).catch(err => {
+    alert('클립보드 복사 권한이 필요합니다: ' + err);
+  });
+}
+
+// 전역 바인딩
+window.exportToCsv = exportToCsv;
+window.exportToMarkdown = exportToMarkdown;
+

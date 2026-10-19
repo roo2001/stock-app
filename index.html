@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -149,7 +149,9 @@
             <option value="dateAsc">📅 과거 요일순</option>
             <option value="nameAsc">가나다순</option>
           </select>
-          <button id="btnOpenAddModal" class="btn-sub">+ 종목 추가</button>
+          <button id="btnExportCsv" class="btn-sub" title="엑셀 호환 CSV 다운로드">💾 CSV</button>
+          <button id="btnExportMarkdown" class="btn-sub" title="옵시디언/카톡용 매매일지 복사">📓 일지복사</button>
+          <button id="btnOpenAddModal" class="btn-primary-small">+ 종목 추가</button>
         </div>
       </div>
 
@@ -192,10 +194,16 @@
       </div>
       <div class="modal-body">
         <label class="input-label">종목명</label>
-        <input type="text" id="addStockName" placeholder="예: SK하이닉스, 에코프로">
+        <input type="text" id="addStockName" placeholder="예: SK하이닉스, 산일전기">
         
         <label class="input-label" style="margin-top:10px;">종목코드 (선택)</label>
-        <input type="text" id="addStockCode" placeholder="예: 000660">
+        <input type="text" id="addStockCode" placeholder="예: 000660 (미입력시 자동 검색)">
+
+        <label class="input-label" style="margin-top:10px;">테마 / 섹터 (선택)</label>
+        <input type="text" id="addStockTheme" placeholder="예: HBM, 변압기, 전력망">
+
+        <label class="input-label" style="margin-top:10px;">💡 추천 이유 / 투자 포인트</label>
+        <input type="text" id="addStockReason" placeholder="예: 북미 변압기 수출 서프라이즈 및 수주 호황">
         
         <label class="input-label" style="margin-top:10px;">메모 / 매매전략</label>
         <input type="text" id="addStockMemo" placeholder="예: 20일선 눌림목 반등 타점">
@@ -206,6 +214,6 @@
   </div>
 
   <!-- 자바스크립트 -->
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
