@@ -1,5 +1,37 @@
 [
   {
+    "theme": "반도체 패키징/서버DDR5",
+    "name": "SFA반도체",
+    "code": "036540",
+    "sector": "반도체",
+    "price": 50331,
+    "change": 1500,
+    "rate": 3.09,
+    "volume": 1250000,
+    "tradeValue": 79,
+    "foreign": "+1.5만",
+    "inst": "+8천",
+    "dayCandle": { "left": 42, "width": 38, "up": true },
+    "date": "2026-10-20",
+    "reason": "저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입"
+  },
+  {
+    "theme": "2차전지/ESS/알루미늄박",
+    "name": "삼아알미늄",
+    "code": "006110",
+    "sector": "철강금속",
+    "price": 36978,
+    "change": 1100,
+    "rate": 3.13,
+    "volume": 450000,
+    "tradeValue": 163,
+    "foreign": "+2.1만",
+    "inst": "+4.5천",
+    "dayCandle": { "left": 42, "width": 38, "up": true },
+    "date": "2026-10-20",
+    "reason": "LG에너지솔루션 및 해외 배터리사향 ESS용 양극박 대규모 공급 모멘텀"
+  },
+  {
     "theme": "중소형 배전변압기",
     "name": "제룡전기",
     "code": "033100",

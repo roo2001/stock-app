@@ -102,6 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExcelWatchlist();
   });
 
+  // 기기 간 동기화 버튼 (카톡 링크 복사 또는 클라우드 갱신)
+  const btnSync = document.getElementById('btnSyncCloud');
+  if (btnSync) btnSync.addEventListener('click', handleSyncCloud);
+
   // CSV 내보내기 버튼 (엑셀/구글시트 호환)
   const btnCsv = document.getElementById('btnExportCsv');
   if (btnCsv) btnCsv.addEventListener('click', exportToCsv);
@@ -115,6 +119,61 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLivePrices(true);
   });
 });
+
+// URL을 통한 기기 간 동기화 파라미터 감지 (?sync=...)
+checkUrlSync();
+
+function checkUrlSync() {
+  const params = new URLSearchParams(window.location.search);
+  const syncData = params.get('sync');
+  if (syncData) {
+    try {
+      const decoded = decodeURIComponent(atob(syncData));
+      const list = JSON.parse(decoded);
+      if (Array.isArray(list) && list.length > 0) {
+        if (confirm(`📲 다른 기기에서 보낸 관심종목 (${list.length}개)을 동기화할까요?`)) {
+          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+          window.history.replaceState({}, document.title, window.location.pathname);
+          alert('✅ 관심종목이 성공적으로 동기화되었습니다!');
+        }
+      }
+    } catch (err) {
+      console.warn('동기화 파싱 오류:', err);
+    }
+  }
+}
+
+async function handleSyncCloud() {
+  const choice = confirm("기기 동기화 방식을 선택해 주세요:\n\n[확인] : 📱 휴대폰으로 보낼 '카톡 동기화 링크' 복사\n[취소] : ☁️ 최신 클라우드 종목(SFA반도체 등)으로 지금 기기 갱신");
+  if (choice) {
+    const list = getWatchlist();
+    if (list.length === 0) {
+      alert('동기화할 종목이 없습니다.');
+      return;
+    }
+    const encoded = btoa(encodeURIComponent(JSON.stringify(list)));
+    const syncUrl = `${window.location.origin}${window.location.pathname}?sync=${encoded}`;
+    navigator.clipboard.writeText(syncUrl).then(() => {
+      alert("📋 [카톡 동기화 링크 복사 완료!]\n\n카카오톡 '나에게 보내기'로 이 링크를 전송한 뒤, 스마트폰에서 링크를 터치하기만 하면 PC의 종목들이 휴대폰으로 즉시 100% 동기화됩니다!");
+    }).catch(() => {
+      prompt('아래 링크를 복사하여 스마트폰 카카오톡으로 보내세요:', syncUrl);
+    });
+  } else {
+    try {
+      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+      if (resp.ok) {
+        const cloudList = await resp.json();
+        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(cloudList));
+        renderExcelWatchlist();
+        alert(`☁️ 최신 클라우드 관심종목 (${cloudList.length}개)으로 성공적으로 갱신되었습니다!`);
+      } else {
+        alert('클라우드 데이터를 불러오지 못했습니다.');
+      }
+    } catch (e) {
+      alert('동기화 중 오류가 발생했습니다: ' + e.message);
+    }
+  }
+}
 
 // ==========================================
 // 2. 탭 및 서브 탭 제어
