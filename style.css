@@ -1108,8 +1108,10 @@ textarea#firebaseConfigInput:focus {
    네이버 증권 고화질 차트 팝업 모달 (v21)
    ========================================== */
 .chart-modal-content {
-  max-width: 580px;
+  max-width: 600px;
   width: 95%;
+  max-height: 92vh;
+  overflow-y: auto;
   background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1148,10 +1150,119 @@ textarea#firebaseConfigInput:focus {
   font-weight: 700;
 }
 
+/* 4대 핵심 매매 기준가 쿼드 그리드 */
+.chart-levels-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 480px) {
+  .chart-levels-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.level-box {
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.level-box-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.level-box-val {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  word-break: break-all;
+}
+
+.target-box {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+.target-box .level-box-title { color: #fca5a5; }
+.target-box .level-box-val { color: #f87171; }
+
+.support-box {
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+}
+.support-box .level-box-title { color: #93c5fd; }
+.support-box .level-box-val { color: #60a5fa; }
+
+.resistance-box {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+.resistance-box .level-box-title { color: #fde68a; }
+.resistance-box .level-box-val { color: #fbbf24; }
+
+.stop-box {
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  background: rgba(168, 85, 247, 0.1);
+}
+.stop-box .level-box-title { color: #d8b4fe; }
+.stop-box .level-box-val { color: #c084fc; }
+
+/* 관심종목 테이블 내 4대 기준가 미니 배지 */
+.stock-levels-badge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.lvl-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.lvl-target {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.lvl-support {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.lvl-resist {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.lvl-stop {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
 .chart-period-tabs {
   display: flex;
   gap: 6px;
-  margin: 14px 0 12px 0;
+  margin: 12px 0 10px 0;
   background: #090d16;
   padding: 4px;
   border-radius: 10px;
@@ -1246,4 +1357,5 @@ textarea#firebaseConfigInput:focus {
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
+
 

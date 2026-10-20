@@ -543,6 +543,12 @@ function initModals() {
     if (themeInput) themeInput.value = '';
     const reasonInput = document.getElementById('addStockReason');
     if (reasonInput) reasonInput.value = '';
+    const targetInput = document.getElementById('addStockTarget');
+    if (targetInput) targetInput.value = '';
+    const supportInput = document.getElementById('addStockSupport');
+    if (supportInput) supportInput.value = '';
+    const stopInput = document.getElementById('addStockStopLoss');
+    if (stopInput) stopInput.value = '';
     document.getElementById('addStockMemo').value = '';
     addModal.classList.remove('hidden');
   });
@@ -582,6 +588,9 @@ function initModals() {
     let code = document.getElementById('addStockCode').value.trim();
     const theme = document.getElementById('addStockTheme')?.value.trim();
     const reason = document.getElementById('addStockReason')?.value.trim();
+    const target = document.getElementById('addStockTarget')?.value.trim();
+    const support = document.getElementById('addStockSupport')?.value.trim();
+    const stopLoss = document.getElementById('addStockStopLoss')?.value.trim();
     const memo = document.getElementById('addStockMemo').value.trim();
 
     if (!name) {
@@ -617,6 +626,13 @@ function initModals() {
       investorDate: master.investorDate || '',
       dayCandle: { left: 40, width: 30, up: (master.rate || 0) >= 0 },
       date: todayStr,
+      target: target || '-',
+      support: support || '-',
+      resistance: '-',
+      stop_loss: stopLoss || '-',
+      summary_3lines: [],
+      trading_type: '직접등록',
+      sentiment: '긍정',
       reason: reason || memo || master.reason || '직접 등록 종목',
       memo: memo || ''
     };
@@ -626,16 +642,40 @@ function initModals() {
     renderExcelWatchlist();
   });
 
-  // 네이버 증권 차트 모달 (v21) 제어
+  // 네이버 증권 차트 & AI 분석 모달 (v22) 제어
   const chartModal = document.getElementById('chartModal');
   const btnCloseChartModal = document.getElementById('btnCloseChartModal');
   const btnCloseChartBtn = document.getElementById('btnCloseChartBtn');
+  const btnCopyModalReport = document.getElementById('btnCopyModalReport');
 
   if (btnCloseChartModal) {
     btnCloseChartModal.addEventListener('click', () => chartModal?.classList.add('hidden'));
   }
   if (btnCloseChartBtn) {
     btnCloseChartBtn.addEventListener('click', () => chartModal?.classList.add('hidden'));
+  }
+
+  // 모달 내 리포트 클립보드 복사
+  if (btnCopyModalReport) {
+    btnCopyModalReport.addEventListener('click', () => {
+      if (!currentChartStock) return;
+      const text = `[주식 쇼츠 AI 종목 심층 분석 리포트]
+- 종목: ${currentChartStock.name} (${currentChartStock.code}) | 테마: ${currentChartStock.theme}
+- 현재가: ${Number(currentChartStock.price).toLocaleString()}원 (${(Number(currentChartStock.rate) || 0) >= 0 ? '+' : ''}${currentChartStock.rate}%)
+- 4대 매매 기준가:
+  🎯 목표가: ${currentChartStock.target || '-'}
+  🛡️ 지지선: ${currentChartStock.support || '-'}
+  🧱 저항선: ${currentChartStock.resistance || '-'}
+  ⚠️ 손절선: ${currentChartStock.stop_loss || '-'}
+- 추천 이유:
+  ${currentChartStock.reason}
+- 핵심 3줄 요약:
+${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert(`📋 '${currentChartStock.name}'의 4대 기준가 및 분석 리포트가 복사되었습니다! 카카오톡이나 옵시디언에 붙여넣으세요.`);
+      });
+    });
   }
 
   // 모달 바깥 어두운 배경 클릭 시 닫기
@@ -692,6 +732,11 @@ function handleOpenChartModal(code, name) {
     open: found.open || 0,
     high: found.high || 0,
     low: found.low || 0,
+    target: found.target || '-',
+    support: found.support || '-',
+    resistance: found.resistance || '-',
+    stop_loss: found.stop_loss || '-',
+    summary_3lines: found.summary_3lines || [],
     reason: found.reason || found.memo || 'AI 추천 관심종목'
   };
 
@@ -723,7 +768,31 @@ function handleOpenChartModal(code, name) {
     openCloseEl.innerText = `시: ${oprc}원 | 고: ${hgpr}원 | 저: ${lwpr}원`;
   }
 
+  // 4대 핵심 매매 기준가 주입
+  const targetEl = document.getElementById('chartModalTarget');
+  const supportEl = document.getElementById('chartModalSupport');
+  const resistEl = document.getElementById('chartModalResistance');
+  const stopEl = document.getElementById('chartModalStopLoss');
+
+  if (targetEl) targetEl.innerText = currentChartStock.target || '-';
+  if (supportEl) supportEl.innerText = currentChartStock.support || '-';
+  if (resistEl) resistEl.innerText = currentChartStock.resistance || '-';
+  if (stopEl) stopEl.innerText = currentChartStock.stop_loss || '-';
+
   if (reasonEl) reasonEl.innerText = currentChartStock.reason;
+
+  // AI 심층 3줄 요약 렌더링
+  const summaryListEl = document.getElementById('chartModalSummaryList');
+  const summarySec = document.getElementById('chartSummarySection');
+  if (summaryListEl && summarySec) {
+    const sumArr = currentChartStock.summary_3lines || [];
+    if (sumArr.length > 0) {
+      summaryListEl.innerHTML = sumArr.map(line => `<li>${line.startsWith('•') ? line.slice(1).trim() : line}</li>`).join('');
+      summarySec.style.display = 'block';
+    } else {
+      summarySec.style.display = 'none';
+    }
+  }
 
   // 4. 네이버 증권 모바일/PC 반응형 상세 링크 바인딩
   if (detailLinkEl) {
@@ -1050,7 +1119,7 @@ function renderAnalysisResult(res) {
         <button class="btn-add-single" data-idx="${idx}">+ 추가</button>
       `;
       card.querySelector('.btn-add-single').addEventListener('click', () => {
-        addSingleDetectedStock(s, res.date);
+        addSingleDetectedStock(s, res.date, res);
       });
       listEl.appendChild(card);
     });
@@ -1116,8 +1185,8 @@ async function requestSingleStockLive(item) {
   }
 }
 
-// 개별 종목 추가 (더미 50000원 영구 삭제 및 정밀 시세 연동)
-function addSingleDetectedStock(stock, dateStr) {
+// 개별 종목 추가 (4대 매매 기준가 및 3줄 요약 영구 저장)
+function addSingleDetectedStock(stock, dateStr, res) {
   const officialCode = getOfficialStockCode(stock.name, stock.code);
   const officialName = getOfficialStockName(officialCode, stock.name);
   const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
@@ -1145,6 +1214,16 @@ function addSingleDetectedStock(stock, dateStr) {
 
   const isUp = oprc > 0 ? (price >= oprc) : (rate >= 0);
 
+  const targetVal = stock.target || res?.target || currentAnalysis?.target || '-';
+  const supportVal = stock.support || res?.support || currentAnalysis?.support || '-';
+  const resistanceVal = stock.resistance || res?.resistance || currentAnalysis?.resistance || '-';
+  const stopLossVal = stock.stop_loss || res?.stop_loss || currentAnalysis?.stop_loss || '-';
+  const summaryArr = (res?.summary_3lines && res.summary_3lines.length > 0)
+    ? res.summary_3lines
+    : (currentAnalysis?.summary_3lines || []);
+  const tradingType = res?.trading_type || currentAnalysis?.trading_type || '스윙';
+  const sentimentVal = res?.sentiment || currentAnalysis?.sentiment || '긍정';
+
   const item = {
     theme: stock.theme || master.theme || '쇼츠추천',
     name: officialName,
@@ -1164,21 +1243,32 @@ function addSingleDetectedStock(stock, dateStr) {
     investorDate: master.investorDate || '',
     dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
     date: dateStr || new Date().toISOString().split('T')[0],
+    target: targetVal,
+    support: supportVal,
+    resistance: resistanceVal,
+    stop_loss: stopLossVal,
+    summary_3lines: summaryArr,
+    trading_type: tradingType,
+    sentiment: sentimentVal,
     reason: stock.reason || master.reason || '영상 추천 종목'
   };
   addStockToStorage(item);
   renderExcelWatchlist();
   requestSingleStockLive(item);
-  alert(`✅ '${item.name}' (${item.code}) 종목이 관심종목 테이블에 추가되었습니다!`);
+  alert(`✅ '${item.name}' (${item.code}) 종목이 4대 매매 기준가와 함께 관심종목 테이블에 추가되었습니다!`);
 }
 
-// 전체 종목 한번에 추가
+// 전체 종목 한번에 추가 (4대 매매 기준가 및 3줄 요약 영구 저장)
 function handleAddAllDetectedStocks() {
   if (!currentAnalysis || !currentAnalysis.stocks || currentAnalysis.stocks.length === 0) {
     alert('추가할 종목이 없습니다.');
     return;
   }
   const dateStr = currentAnalysis.date || new Date().toISOString().split('T')[0];
+  const summaryArr = currentAnalysis.summary_3lines || [];
+  const tradingType = currentAnalysis.trading_type || '스윙';
+  const sentimentVal = currentAnalysis.sentiment || '긍정';
+
   currentAnalysis.stocks.forEach(stock => {
     const officialCode = getOfficialStockCode(stock.name, stock.code);
     const officialName = getOfficialStockName(officialCode, stock.name);
@@ -1207,6 +1297,11 @@ function handleAddAllDetectedStocks() {
 
     const isUp = oprc > 0 ? (price >= oprc) : (rate >= 0);
 
+    const targetVal = stock.target || currentAnalysis.target || '-';
+    const supportVal = stock.support || currentAnalysis.support || '-';
+    const resistanceVal = stock.resistance || currentAnalysis.resistance || '-';
+    const stopLossVal = stock.stop_loss || currentAnalysis.stop_loss || '-';
+
     const item = {
       theme: stock.theme || master.theme || '쇼츠추천',
       name: officialName,
@@ -1226,13 +1321,20 @@ function handleAddAllDetectedStocks() {
       investorDate: master.investorDate || '',
       dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
       date: dateStr,
+      target: targetVal,
+      support: supportVal,
+      resistance: resistanceVal,
+      stop_loss: stopLossVal,
+      summary_3lines: summaryArr,
+      trading_type: tradingType,
+      sentiment: sentimentVal,
       reason: stock.reason || master.reason || '영상 추천 종목'
     };
     addStockToStorage(item);
     requestSingleStockLive(item);
   });
   renderExcelWatchlist();
-  alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 모두 공식 종목코드로 관심종목 테이블에 등록되었습니다!`);
+  alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 4대 매매 기준가와 함께 관심종목 테이블에 등록되었습니다!`);
 }
 
 // 리포트 복사
@@ -1343,6 +1445,13 @@ async function initWatchlist() {
         item.sector = guessSector(item.theme, item.name);
       }
     }
+
+    // 4대 매매 기준가 및 3줄 요약 필드 자가치료
+    item.target = item.target || (master && master.target) || '-';
+    item.support = item.support || (master && master.support) || '-';
+    item.resistance = item.resistance || (master && master.resistance) || '-';
+    item.stop_loss = item.stop_loss || (master && master.stop_loss) || '-';
+    item.summary_3lines = item.summary_3lines || [];
 
     // 당일봉 HTS 정밀 동기화 (종가 >= 시가 이면 양봉, 종가 < 시가 이면 음봉)
     const oprc = Number(item.open) || Number(item.price) || 0;
@@ -1534,17 +1643,31 @@ function renderExcelWatchlist() {
         ? `<span class="stock-date-tag" style="background:rgba(37,99,235,0.2); color:#93c5fd; border:1px solid rgba(59,130,246,0.3); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-left:4px;">📅 ${stock.date}</span>` 
         : '';
 
+      const hasLevels = (stock.target && stock.target !== '-') || 
+                        (stock.support && stock.support !== '-') || 
+                        (stock.resistance && stock.resistance !== '-') || 
+                        (stock.stop_loss && stock.stop_loss !== '-');
+      const levelsBadgeHtml = hasLevels ? `
+        <div class="stock-levels-badge">
+          ${stock.target && stock.target !== '-' ? `<span class="lvl-tag lvl-target">🎯목표: ${stock.target}</span>` : ''}
+          ${stock.support && stock.support !== '-' ? `<span class="lvl-tag lvl-support">🛡️지지: ${stock.support}</span>` : ''}
+          ${stock.resistance && stock.resistance !== '-' ? `<span class="lvl-tag lvl-resist">🧱저항: ${stock.resistance}</span>` : ''}
+          ${stock.stop_loss && stock.stop_loss !== '-' ? `<span class="lvl-tag lvl-stop">⚠️손절: ${stock.stop_loss}</span>` : ''}
+        </div>
+      ` : '';
+
       tableHtml += `
         <tr>
           <td><span class="theme-tag">${stock.theme || '추천'}</span></td>
           <td>
             <div style="display:inline-flex; align-items:center; flex-wrap:wrap; gap:3px;">
-              <span class="stock-name-cell" onclick="handleOpenChartModal('${stock.code}', '${stock.name}')" title="클릭 시 네이버 실시간 차트 팝업">${stock.name}</span>
+              <span class="stock-name-cell" onclick="handleOpenChartModal('${stock.code}', '${stock.name}')" title="클릭 시 네이버 실시간 차트 & AI 분석 리포트 팝업">${stock.name}</span>
               <span class="stock-code-cell">${stock.code}</span>
               <a href="https://m.stock.naver.com/domestic/stock/${stock.code}/total" target="_blank" rel="noopener noreferrer" class="stock-naver-link" title="네이버 증권 새 탭 열기">↗</a>
               ${dateBadgeHtml}
             </div>
             <span class="stock-reason-badge">💡 이유: ${reasonText}</span>
+            ${levelsBadgeHtml}
           </td>
           <td style="color:#94a3b8; font-size:0.78rem;">${stock.sector || '-'}</td>
           <td style="font-weight:700;">${Number(stock.price || 0).toLocaleString()}원</td>
@@ -1814,7 +1937,7 @@ function exportToCsv() {
 
   // UTF-8 BOM (\uFEFF) 추가하여 엑셀 한글 깨짐 방지
   let csvContent = '\uFEFF';
-  const headers = ['등록일자', '요일', '테마', '종목명', '종목코드', '업종', '현재가(원)', '등락률(%)', '거래대금(억)', '외인순매수', '기관순매수', '추천이유', '메모'];
+  const headers = ['등록일자', '요일', '테마', '종목명', '종목코드', '업종', '현재가(원)', '등락률(%)', '거래대금(억)', '목표가', '지지선', '저항선', '손절가', '외인순매수', '기관순매수', '추천이유', '3줄요약', '메모'];
   csvContent += headers.map(h => `"${h}"`).join(',') + '\r\n';
 
   list.forEach(item => {
@@ -1824,6 +1947,8 @@ function exportToCsv() {
     try {
       if (d) dayStr = dayNames[new Date(d).getDay()] + '요일';
     } catch {}
+
+    const sumStr = Array.isArray(item.summary_3lines) ? item.summary_3lines.join(' / ') : '';
 
     const row = [
       d,
@@ -1835,9 +1960,14 @@ function exportToCsv() {
       item.price || 0,
       item.rate !== undefined ? item.rate : 0,
       item.tradeValue || 0,
+      item.target || '-',
+      item.support || '-',
+      item.resistance || '-',
+      item.stop_loss || '-',
       item.foreign || '-',
       item.inst || '-',
       (item.reason || '').replace(/"/g, '""'),
+      sumStr.replace(/"/g, '""'),
       (item.memo || '').replace(/"/g, '""')
     ];
     csvContent += row.map(v => `"${v}"`).join(',') + '\r\n';
@@ -1916,15 +2046,18 @@ function exportToMarkdown() {
     else headerText = `📅 ${getWeekdayLabel(groupKey)}`;
 
     md += `### ${headerText}\n\n`;
-    md += `| 일자 | 테마 | 종목명 (코드) | 현재가 | 등락률 | 거래대금 | 외인 | 기관 | 💡 추천 이유 |\n`;
-    md += `| :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
+    md += `| 일자 | 테마 | 종목명 (코드) | 현재가 | 등락률 | 🎯 목표가 | 🛡️ 지지선 | ⚠️ 손절선 | 외인 | 기관 | 💡 추천 이유 |\n`;
+    md += `| :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
 
     groups[groupKey].forEach(stock => {
       const sign = (stock.rate || 0) >= 0 ? '+' : '';
       const rateStr = `${sign}${stock.rate || 0}%`;
       const priceStr = Number(stock.price || 0).toLocaleString() + '원';
       const reasonStr = (stock.reason || stock.memo || '쇼츠 AI 추천').replace(/\|/g, '/');
-      md += `| ${stock.date || '-'} | ${stock.theme || '추천'} | **${stock.name}** (${stock.code || '-'}) | ${priceStr} | ${rateStr} | ${stock.tradeValue || 0}억 | ${stock.foreign || '-'} | ${stock.inst || '-'} | ${reasonStr} |\n`;
+      const targetStr = stock.target || '-';
+      const supportStr = stock.support || '-';
+      const stopStr = stock.stop_loss || '-';
+      md += `| ${stock.date || '-'} | ${stock.theme || '추천'} | **${stock.name}** (${stock.code || '-'}) | ${priceStr} | ${rateStr} | ${targetStr} | ${supportStr} | ${stopStr} | ${stock.foreign || '-'} | ${stock.inst || '-'} | ${reasonStr} |\n`;
     });
     md += '\n';
   });
