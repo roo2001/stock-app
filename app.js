@@ -11,6 +11,8 @@ function getOfficialStockCode(name = '', fallbackCode = '000000') {
   }
   // 흔한 오타 및 별칭 사전 체크
   const aliasMap = {
+    '펨텍코리아': '251970',
+    '펌텍코리아': '251970',
     '빗샘전자': '072950',
     '빛샘전자': '072950',
     '한국전력기술': '052690',
@@ -23,6 +25,13 @@ function getOfficialStockCode(name = '', fallbackCode = '000000') {
     '기아차': '000270'
   };
   if (aliasMap[cleanName]) return aliasMap[cleanName];
+
+  // '펨' -> '펌' 등 흔한 오타 보정 시도
+  const correctedName = cleanName.replace(/펨/g, '펌');
+  if (window.KRX_STOCK_MAP && window.KRX_STOCK_MAP[correctedName]) {
+    return window.KRX_STOCK_MAP[correctedName];
+  }
+
   if (fallbackCode && fallbackCode !== '000000') return String(fallbackCode).padStart(6, '0');
   return '000000';
 }
@@ -650,6 +659,7 @@ function initModals() {
   const btnCloseChartModal = document.getElementById('btnCloseChartModal');
   const btnCloseChartBtn = document.getElementById('btnCloseChartBtn');
   const btnCopyModalReport = document.getElementById('btnCopyModalReport');
+  const btnOpenEditFromChart = document.getElementById('btnOpenEditFromChart');
 
   if (btnCloseChartModal) {
     btnCloseChartModal.addEventListener('click', () => chartModal?.classList.add('hidden'));
@@ -681,11 +691,120 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
     });
   }
 
+  // 차트 모달에서 [✏️ 종목 수정] 버튼 클릭
+  if (btnOpenEditFromChart) {
+    btnOpenEditFromChart.addEventListener('click', () => {
+      if (!currentChartStock) return;
+      chartModal?.classList.add('hidden');
+      handleOpenEditModal(currentChartStock.name, currentChartStock.date);
+    });
+  }
+
+  // 종목 정보 수정 모달 (v24) 제어
+  const editStockModal = document.getElementById('editStockModal');
+  const btnCloseEditModal = document.getElementById('btnCloseEditModal');
+  const btnConfirmEditStock = document.getElementById('btnConfirmEditStock');
+
+  if (btnCloseEditModal) {
+    btnCloseEditModal.addEventListener('click', () => editStockModal?.classList.add('hidden'));
+  }
+
+  if (btnConfirmEditStock) {
+    btnConfirmEditStock.addEventListener('click', () => {
+      const origName = document.getElementById('editOriginalName').value;
+      const origDate = document.getElementById('editOriginalDate').value;
+
+      let name = document.getElementById('editStockName').value.trim();
+      let code = document.getElementById('editStockCode').value.trim();
+      const theme = document.getElementById('editStockTheme')?.value.trim();
+      const sector = document.getElementById('editStockSector')?.value.trim();
+      const reason = document.getElementById('editStockReason')?.value.trim();
+      const target = document.getElementById('editStockTarget')?.value.trim();
+      const support = document.getElementById('editStockSupport')?.value.trim();
+      const resistance = document.getElementById('editStockResistance')?.value.trim();
+      const stopLoss = document.getElementById('editStockStopLoss')?.value.trim();
+      const memo = document.getElementById('editStockMemo')?.value.trim();
+
+      if (!name) {
+        alert('종목명을 입력해 주세요.');
+        return;
+      }
+
+      // KRX 공식 코드 및 종목명 자동 매핑 (오타 교정 포함)
+      const officialCode = getOfficialStockCode(name, code);
+      const officialName = getOfficialStockName(officialCode, name);
+
+      const finalCode = (officialCode && officialCode !== '000000') ? officialCode : (code || '000000');
+      const finalName = (officialCode && officialCode !== '000000' && officialName !== finalCode) ? officialName : name;
+
+      const list = getWatchlist();
+      const idx = list.findIndex(s => s.name === origName && (origDate ? s.date === origDate : true));
+
+      if (idx !== -1) {
+        const item = list[idx];
+        item.name = finalName;
+        item.code = finalCode;
+        if (theme) item.theme = theme;
+        item.sector = sector || guessSector(item.theme, item.name);
+        if (reason) item.reason = reason;
+        item.target = target || '-';
+        item.support = support || '-';
+        item.resistance = resistance || '-';
+        item.stop_loss = stopLoss || '-';
+        if (memo !== undefined) item.memo = memo;
+
+        saveWatchlist(list);
+        editStockModal.classList.add('hidden');
+
+        // 실시간 시세 즉시 재조회 (0원이었던 종목 즉시 탈출)
+        if (finalCode && finalCode !== '000000') {
+          fetchLiveNaverStockPrice(finalCode, finalName);
+        }
+
+        alert(`✅ '${finalName}' (${finalCode}) 종목 정보가 성공적으로 수정되었습니다!\n실시간 시세가 갱신됩니다.`);
+      } else {
+        alert('수정할 기존 종목 데이터를 찾을 수 없습니다.');
+      }
+    });
+  }
+
+  // 실시간 KRX 마스터 코드 자동완성 (종목 추가 / 수정 창)
+  const addNameInput = document.getElementById('addStockName');
+  const addCodeInput = document.getElementById('addStockCode');
+  if (addNameInput && addCodeInput) {
+    addNameInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      const code = getOfficialStockCode(val);
+      if (code && code !== '000000') {
+        addCodeInput.value = code;
+      }
+    });
+  }
+
+  const editNameInput = document.getElementById('editStockName');
+  const editCodeInput = document.getElementById('editStockCode');
+  if (editNameInput && editCodeInput) {
+    editNameInput.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      const code = getOfficialStockCode(val);
+      if (code && code !== '000000') {
+        editCodeInput.value = code;
+      }
+    });
+  }
+
   // 모달 바깥 어두운 배경 클릭 시 닫기
   if (chartModal) {
     chartModal.addEventListener('click', (e) => {
       if (e.target === chartModal) {
         chartModal.classList.add('hidden');
+      }
+    });
+  }
+  if (editStockModal) {
+    editStockModal.addEventListener('click', (e) => {
+      if (e.target === editStockModal) {
+        editStockModal.classList.add('hidden');
       }
     });
   }
@@ -696,6 +815,7 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
       if (chartModal && !chartModal.classList.contains('hidden')) chartModal.classList.add('hidden');
       if (settingsModal && !settingsModal.classList.contains('hidden')) settingsModal.classList.add('hidden');
       if (addModal && !addModal.classList.contains('hidden')) addModal.classList.add('hidden');
+      if (editStockModal && !editStockModal.classList.contains('hidden')) editStockModal.classList.add('hidden');
     }
   });
 
@@ -707,6 +827,50 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
     });
   });
 }
+
+// 종목 정보 수정 모달 오픈 전역 핸들러
+function handleOpenEditModal(name, date) {
+  const list = getWatchlist();
+  const item = list.find(s => s.name === name && (date ? s.date === date : true)) || list.find(s => s.name === name);
+  if (!item) {
+    alert('해당 종목 데이터를 찾을 수 없습니다.');
+    return;
+  }
+
+  // 숨김 키에 원본 식별자 저장
+  const origNameEl = document.getElementById('editOriginalName');
+  const origDateEl = document.getElementById('editOriginalDate');
+  if (origNameEl) origNameEl.value = item.name;
+  if (origDateEl) origDateEl.value = item.date || '';
+
+  // 폼에 기존 정보 세팅
+  const nameEl = document.getElementById('editStockName');
+  const codeEl = document.getElementById('editStockCode');
+  const themeEl = document.getElementById('editStockTheme');
+  const sectorEl = document.getElementById('editStockSector');
+  const reasonEl = document.getElementById('editStockReason');
+  const targetEl = document.getElementById('editStockTarget');
+  const supportEl = document.getElementById('editStockSupport');
+  const resistEl = document.getElementById('editStockResistance');
+  const stopEl = document.getElementById('editStockStopLoss');
+  const memoEl = document.getElementById('editStockMemo');
+
+  if (nameEl) nameEl.value = item.name || '';
+  if (codeEl) codeEl.value = (item.code && item.code !== '000000') ? item.code : getOfficialStockCode(item.name);
+  if (themeEl) themeEl.value = item.theme || '';
+  if (sectorEl) sectorEl.value = item.sector || '';
+  if (reasonEl) reasonEl.value = item.reason || item.memo || '';
+  if (targetEl) targetEl.value = (item.target && item.target !== '-') ? item.target : '';
+  if (supportEl) supportEl.value = (item.support && item.support !== '-') ? item.support : '';
+  if (resistEl) resistEl.value = (item.resistance && item.resistance !== '-') ? item.resistance : '';
+  if (stopEl) stopEl.value = (item.stop_loss && item.stop_loss !== '-') ? item.stop_loss : '';
+  if (memoEl) memoEl.value = item.memo || '';
+
+  const modal = document.getElementById('editStockModal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+window.handleOpenEditModal = handleOpenEditModal;
 
 // ==========================================
 // 네이버 증권 고화질 차트 모달 엔진 (v21)
@@ -1558,6 +1722,7 @@ async function initWatchlist() {
     // 1. 오타 교정
     if (item.name === '빗샘전자') item.name = '빛샘전자';
     if (item.name === '한국전력기술') item.name = '한전기술';
+    if (item.name === '펨텍코리아') item.name = '펌텍코리아';
 
     // 2. KRX 3,944개 공식 종목코드 강제 자동 매핑
     const officialCode = getOfficialStockCode(item.name, item.code);
@@ -1860,8 +2025,9 @@ function renderExcelWatchlist() {
             <div>${stock.inst || '-'}</div>
             ${stock.investorDate ? `<span style="font-size:0.65rem; color:#94a3b8; display:block;" title="수급 확정 기준일">(${stock.investorDate.slice(4,6)}.${stock.investorDate.slice(6,8)})</span>` : ''}
           </td>
-          <td style="text-align:center;">
-            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 관심종목 삭제">🗑️ 삭제</button>
+          <td style="text-align:center; white-space:nowrap;">
+            <button class="stock-edit-btn" onclick="handleOpenEditModal('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 종목 정보/목표가/이유 수정">✏️ 수정</button>
+            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 관심종목 삭제">🗑️</button>
           </td>
         </tr>
       `;

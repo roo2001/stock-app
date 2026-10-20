@@ -654,19 +654,44 @@ input:focus {
   color: var(--text-muted);
 }
 
-.stock-del-btn {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
-  font-size: 0.8rem;
+.stock-edit-btn {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
+  font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.stock-edit-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+}
+
+.stock-del-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   transition: all 0.2s ease;
   line-height: 1;
 }
@@ -675,7 +700,7 @@ input:focus {
   background: #ef4444;
   color: #ffffff;
   border-color: #ef4444;
-  transform: scale(1.08);
+  transform: scale(1.05);
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
 }
 
@@ -1161,8 +1186,8 @@ textarea#firebaseConfigInput:focus {
   right: 0;
   background-color: #0b1329;
   z-index: 5;
-  width: 68px;
-  min-width: 68px;
+  width: 112px;
+  min-width: 112px;
   text-align: center !important;
   box-shadow: -4px 0 8px rgba(0, 0, 0, 0.45);
 }
