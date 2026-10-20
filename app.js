@@ -1793,7 +1793,7 @@ function renderExcelWatchlist() {
         <thead>
           <tr>
             <th>테마</th>
-            <th style="min-width: 200px;">종목명 (코드) & 추천 이유</th>
+            <th>종목명 (코드) & 추천 이유</th>
             <th>업종</th>
             <th>현재가</th>
             <th>등락률</th>

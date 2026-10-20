@@ -1090,13 +1090,13 @@ textarea#firebaseConfigInput:focus {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.84rem;
+  font-size: 0.81rem;
 }
 
 .excel-table th {
   background-color: #0f172a;
   color: #94a3b8;
-  padding: 9px 10px;
+  padding: 8px 6px;
   font-weight: 700;
   text-align: right;
   border-bottom: 1px solid var(--border-color);
@@ -1111,21 +1111,21 @@ textarea#firebaseConfigInput:focus {
 .excel-table th:nth-child(2),
 .excel-table td:nth-child(2) {
   text-align: left;
-  max-width: 320px;
+  max-width: 260px;
   white-space: normal;
 }
 
 .stock-reason-badge {
   display: block;
   white-space: normal;
-  max-width: 310px;
-  font-size: 0.76rem;
+  max-width: 250px;
+  font-size: 0.74rem;
   color: #fde047;
   font-weight: 500;
-  line-height: 1.35;
-  margin-top: 4px;
+  line-height: 1.3;
+  margin-top: 3px;
   background: rgba(253, 224, 71, 0.08);
-  padding: 4px 6px;
+  padding: 3px 5px;
   border-radius: 4px;
   border-left: 2px solid #eab308;
   word-break: keep-all;
@@ -1134,10 +1134,10 @@ textarea#firebaseConfigInput:focus {
 .stock-levels-badge {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  max-width: 310px;
+  gap: 2px;
+  max-width: 250px;
   white-space: normal;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 /* 관리 열 우측 고정 (Sticky) - separate 모드에서 완벽 구동 */
@@ -1147,14 +1147,14 @@ textarea#firebaseConfigInput:focus {
   right: 0;
   background-color: #0b1329;
   z-index: 5;
-  width: 72px;
-  min-width: 72px;
+  width: 68px;
+  min-width: 68px;
   text-align: center !important;
   box-shadow: -4px 0 8px rgba(0, 0, 0, 0.45);
 }
 
 .excel-table td {
-  padding: 10px;
+  padding: 8px 6px;
   border-bottom: 1px solid #1e293b;
   text-align: right;
   white-space: nowrap;
