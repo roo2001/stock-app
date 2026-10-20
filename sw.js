@@ -1,5 +1,5 @@
-// sw.js - Service Worker for PWA (v24 캐시 갱신)
-const CACHE_NAME = 'stock-shorts-pwa-v24';
+// sw.js - Service Worker for PWA (v25 캐시 갱신)
+const CACHE_NAME = 'stock-shorts-pwa-v25';
 const ASSETS = [
   './',
   './index.html',

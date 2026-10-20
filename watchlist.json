@@ -1,5 +1,30 @@
 [
   {
+    "theme": "화장품/K뷰티",
+    "name": "펌텍코리아",
+    "code": "251970",
+    "sector": "화장품/용기",
+    "price": 68300,
+    "change": -3500,
+    "rate": -4.87,
+    "volume": 49115,
+    "tradeValue": 34,
+    "foreign": "+1.4만",
+    "inst": "+3.2천",
+    "investorDate": "20261019",
+    "open": 71300,
+    "high": 72000,
+    "low": 68200,
+    "dayCandle": {
+      "left": 12,
+      "width": 38,
+      "up": false
+    },
+    "date": "2026-10-20",
+    "target": "55,000원",
+    "reason": "화장품 용기 1위 및 K뷰티 글로벌 수출 서프라이즈 수혜"
+  },
+  {
     "theme": "삼성 파운드리 DSP/디자인하우스",
     "name": "코아시아",
     "code": "045970",
