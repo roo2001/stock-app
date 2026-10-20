@@ -105,6 +105,9 @@ let currentUploadedFile = null;
 let currentUploadedBase64 = null;
 let currentUploadedText = null;
 let currentUploadedType = null; // 'image' | 'video' | 'pdf' | 'excel' | 'csv'
+let currentUploadedMimeType = null;
+let currentUploadedVideoFrames = []; // 20MB 초과 대용량 비디오 타임라인 프레임
+let isFileReading = false;
 let liveInterval = null;
 
 // ==========================================
@@ -482,9 +485,10 @@ function initFileUpload() {
       };
       reader.readAsDataURL(file);
 
-    // 5. 비디오 파일 (쇼츠 영상)
-    } else if (file.type.startsWith('video/')) {
+    // 5. 비디오 파일 (쇼츠 영상 - MP4/WebM/MOV)
+    } else if (file.type.startsWith('video/') || fileName.endsWith('.mp4') || fileName.endsWith('.webm') || fileName.endsWith('.mov') || fileName.endsWith('.mkv')) {
       currentUploadedType = 'video';
+      currentUploadedMimeType = file.type || 'video/mp4';
       if (docPreview) docPreview.classList.add('hidden');
       imagePreview.classList.add('hidden');
       videoPreview.classList.remove('hidden');
@@ -492,23 +496,65 @@ function initFileUpload() {
       const videoUrl = URL.createObjectURL(file);
       videoPreview.src = videoUrl;
 
-      videoPreview.onloadeddata = () => {
-        videoPreview.currentTime = Math.min(2.0, (videoPreview.duration || 4) / 2);
-      };
+      const isLargeVideo = file.size > 20 * 1024 * 1024; // 20MB 초과 여부
 
-      videoPreview.onseeked = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = videoPreview.videoWidth || 640;
-          canvas.height = videoPreview.videoHeight || 360;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          currentUploadedBase64 = dataUrl.split(',')[1];
-        } catch (err) {
-          console.warn('비디오 캡처 오류:', err);
-        }
-      };
+      if (!isLargeVideo) {
+        // [v27 핵심 혁신] 20MB 이하 쇼츠 영상: 원본 MP4 Base64를 추출하여 Gemini Flash에 음성+자막 전체 직송
+        isFileReading = true;
+        fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 음성/자막 전수 분석 데이터 인코딩 중...)`;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          currentUploadedBase64 = event.target.result.split(',')[1];
+          isFileReading = false;
+          fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 음성/자막 전수 분석 준비 완료)`;
+        };
+        reader.onerror = (err) => {
+          console.warn('비디오 Base64 인코딩 실패:', err);
+          isFileReading = false;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // 20MB 초과 대용량 영상: 타임라인 5지점(10%, 30%, 50%, 70%, 90%) 다중 프레임 자동 샘플러
+        isFileReading = true;
+        currentUploadedVideoFrames = [];
+        fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 대용량 영상 5분할 타임라인 캡처 중...)`;
+
+        videoPreview.onloadedmetadata = async () => {
+          try {
+            const duration = videoPreview.duration || 10;
+            const capturePoints = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => duration * p);
+            const frames = [];
+
+            for (const pt of capturePoints) {
+              await new Promise((resolve) => {
+                videoPreview.currentTime = pt;
+                videoPreview.onseeked = () => {
+                  try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.min(videoPreview.videoWidth || 640, 1280);
+                    canvas.height = Math.min(videoPreview.videoHeight || 360, 720);
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    frames.push(dataUrl.split(',')[1]);
+                  } catch (e) {
+                    console.warn('프레임 캡처 실패:', e);
+                  }
+                  resolve();
+                };
+              });
+            }
+            currentUploadedVideoFrames = frames;
+            if (frames.length > 0) currentUploadedBase64 = frames[0];
+            isFileReading = false;
+            fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 5개 타임라인 프레임 캡처 완료)`;
+          } catch (err) {
+            console.warn('대용량 비디오 타임라인 캡처 오류:', err);
+            isFileReading = false;
+          }
+        };
+      }
     } else {
       currentUploadedType = 'doc';
       if (docPreview) {
@@ -530,6 +576,9 @@ function initFileUpload() {
     currentUploadedBase64 = null;
     currentUploadedText = null;
     currentUploadedType = null;
+    currentUploadedMimeType = null;
+    currentUploadedVideoFrames = [];
+    isFileReading = false;
     fileInput.value = '';
     imagePreview.src = '';
     videoPreview.src = '';
@@ -537,6 +586,7 @@ function initFileUpload() {
     dropZone.classList.remove('has-file');
     dropContent.classList.remove('hidden');
     previewContainer.classList.add('hidden');
+    fileInfoText.innerText = '';
   }
 }
 
@@ -1092,6 +1142,11 @@ async function handleAnalyze() {
     return;
   }
 
+  if (!isLinkMode && isFileReading) {
+    alert('동영상/파일 데이터를 읽고 인코딩 중입니다. 1~2초 후 다시 [분석 시작]을 눌러주세요.');
+    return;
+  }
+
   if (!isLinkMode && (!currentUploadedFile || (!currentUploadedBase64 && !currentUploadedText))) {
     alert('분석할 파일(영상, 이미지, PDF 리포트, 엑셀 파일 등)을 먼저 선택해 주세요.');
     return;
@@ -1112,8 +1167,10 @@ async function handleAnalyze() {
       loadingStatusText.innerText = '구글 Gemini AI가 증권사 PDF 리포트를 정밀 분석 중입니다...';
     } else if (currentUploadedType === 'excel' || currentUploadedType === 'csv') {
       loadingStatusText.innerText = '구글 Gemini AI가 엑셀 스프레드시트 종목 데이터를 분석 중입니다...';
+    } else if (currentUploadedType === 'video') {
+      loadingStatusText.innerText = '구글 Gemini AI가 쇼츠 영상 전체(음성+자막)를 전수 청취/분석 중입니다...';
     } else {
-      loadingStatusText.innerText = '구글 Gemini AI가 주식 영상/차트 화면을 분석 중입니다...';
+      loadingStatusText.innerText = '구글 Gemini AI가 주식 차트/이미지 화면을 분석 중입니다...';
     }
   }
 
@@ -1185,6 +1242,40 @@ JSON 스키마:
       parts.push({
         text: `첨부된 엑셀/스프레드시트 데이터(표 형식)를 분석해 주세요. 파일 내에 표기된 날짜(date)와 모든 종목명, 목표가, 현재가, 추천 사유/메모를 빠짐없이 전수 추출하여 JSON 스키마 규격으로 정돈해 주세요. 오늘 기준일: ${todayStr}\n\n[스프레드시트 데이터 원문]:\n${currentUploadedText}`
       });
+    } else if (currentUploadedType === 'video') {
+      if (currentUploadedBase64 && (!currentUploadedVideoFrames || currentUploadedVideoFrames.length === 0)) {
+        // [v27 핵심] 원본 비디오 멀티모달 직송 (Gemini Flash 음성 + 영상 자막 전수 청취/시청)
+        parts.push({
+          inlineData: {
+            mimeType: currentUploadedMimeType || 'video/mp4',
+            data: currentUploadedBase64
+          }
+        });
+        parts.push({
+          text: `첨부된 주식 쇼츠 동영상 원본을 처음부터 끝까지 정밀하게 시청 및 청취(Voice/화자 음성 + 화면 자막/텍스트 전수 분석)해 주세요.
+
+[쇼츠 동영상 전수 분석 특화 필수 지침]:
+1. **모든 종목 전수 추출 (가장 중요)**: 영상의 오프닝 제목(예: "삼성 4대 파트너 정리!")만 보고 끝내지 마십시오! 영상 전반에 걸쳐 본론(중반, 후반)에서 화자가 차례대로 소개하거나 자막에 표시되는 **모든 핵심 종목(1번, 2번, 3번, 4번 파트너사, 협력사, 관련주, 수혜주 등 본론에 등장하는 모든 종목 일체)**을 단 하나도 누락 없이 "stocks" 배열에 전수 추출하세요.
+2. **선정 사유(reason) 상세 기록**: 영상 속 화자의 음성 멘트 및 자막에서 각 종목을 추천하거나 선정한 핵심 근거(예: 디자인하우스 파트너, 반도체 IP, 파운드리 협력, 실적 모멘텀 등)를 각 종목의 "reason"에 충실히 기재하세요.
+3. **날짜(date) 감지**: 영상 자막이나 제목에 표기된 날짜를 우선 반영하고, 없을 경우 오늘 기준일(${todayStr})을 사용하세요.
+4. **목표가/손절가 엄격 원칙**: 화자가 음성이나 자막으로 특정 가격을 직접 언급한 경우에만 수치를 적고, 차트 그림만 있고 언급이 없는 경우는 반드시 "미제시"로 출력하세요.
+
+오늘 기준일: ${todayStr}`
+        });
+      } else if (currentUploadedVideoFrames && currentUploadedVideoFrames.length > 0) {
+        // 대용량 비디오 5분할 타임라인 프레임 전송 모드
+        currentUploadedVideoFrames.forEach((frameBase64, idx) => {
+          parts.push({
+            inlineData: {
+              mimeType: 'image/jpeg',
+              data: frameBase64
+            }
+          });
+        });
+        parts.push({
+          text: `첨부된 주식 쇼츠 영상의 타임라인별 순차 캡처 화면들(5개 지점)입니다. 영상에 소개된 모든 종목(메인 종목뿐 아니라 본론에 소개된 1~4대 파트너사, 관련주, 수혜주 등 일체)과 자막 내용을 빠짐없이 전수 추출하여 JSON 스키마 규격으로 정돈해 주세요. 오늘 기준일: ${todayStr}`
+        });
+      }
     } else {
       parts.push({
         inlineData: {
@@ -1192,7 +1283,7 @@ JSON 스키마:
           data: currentUploadedBase64
         }
       });
-      parts.push({ text: `첨부된 주식 차트/영상 화면을 분석해 주세요. 특히 화면 상단이나 자막에 표기된 날짜(예: 10.16, 10/17 등)를 최우선으로 감지하여 'date'에 정확히 반영하고, 화면에 나타난 모든 종목과 추천 이유를 도출해 주세요. 오늘 기준일: ${todayStr}` });
+      parts.push({ text: `첨부된 주식 차트/이미지 화면을 분석해 주세요. 특히 화면 상단이나 자막에 표기된 날짜(예: 10.16, 10/17 등)를 최우선으로 감지하여 'date'에 정확히 반영하고, 화면에 나타난 모든 종목과 추천 이유를 도출해 주세요. 오늘 기준일: ${todayStr}` });
     }
 
     const modelCandidates = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
