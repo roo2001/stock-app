@@ -759,19 +759,31 @@ JSON 스키마:
   }
 }
 
-// 날짜 정규화 함수 (10.16-금, 10/16, 2026.10.16 등 다양한 표기를 YYYY-MM-DD로 표준화)
+// 날짜 정규화 함수 (10.16-금, 10/16, 2026.10.16, 2026-10-16, 10월 16일 등 다양한 영상/문서 표기를 YYYY-MM-DD로 정밀 표준화)
 function normalizeDate(str) {
   if (!str) return new Date().toISOString().split('T')[0];
   const cleaned = String(str).trim();
-  const m1 = cleaned.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+
+  // 1. 4자리 연도: 2026-10-16, 2026.10.16, 2026/10/16, 2026년 10월 16일
+  const m1 = cleaned.match(/(\d{4})[-./년]\s*(\d{1,2})[-./월]\s*(\d{1,2})/);
   if (m1) {
     return `${m1[1]}-${String(m1[2]).padStart(2, '0')}-${String(m1[3]).padStart(2, '0')}`;
   }
+
+  // 2. 2자리 연도: 26.10.16, 26-10-16, 26/10/16
+  const mYear2 = cleaned.match(/^(?:20)?(\d{2})[-./]\s*(\d{1,2})[-./]\s*(\d{1,2})/);
+  if (mYear2 && Number(mYear2[2]) <= 12 && Number(mYear2[3]) <= 31) {
+    const fullYear = Number(mYear2[1]) > 50 ? `19${mYear2[1]}` : `20${mYear2[1]}`;
+    return `${fullYear}-${String(mYear2[2]).padStart(2, '0')}-${String(mYear2[3]).padStart(2, '0')}`;
+  }
+
+  // 3. 월/일만 있는 경우: 10.16, 10/16, 10월 16일, 10.16-금, 10/16(금)
   const m2 = cleaned.match(/(\d{1,2})[월.-/]\s*(\d{1,2})/);
-  if (m2) {
+  if (m2 && Number(m2[1]) <= 12 && Number(m2[2]) <= 31) {
     const year = new Date().getFullYear();
     return `${year}-${String(m2[1]).padStart(2, '0')}-${String(m2[2]).padStart(2, '0')}`;
   }
+
   return cleaned;
 }
 
@@ -1011,13 +1023,17 @@ function getWatchlist() {
 function addStockToStorage(item) {
   const list = getWatchlist();
   if (!item.date) item.date = new Date().toISOString().split('T')[0];
-  const filtered = list.filter(s => s.name !== item.name);
+  // 같은 일자에 동일 종목이 있으면 업데이트, 서로 다른 일자의 동일 종목은 날짜별 추천 이력으로 보존
+  const filtered = list.filter(s => !(s.name === item.name && s.date === item.date));
   filtered.unshift(item);
   saveWatchlist(filtered);
 }
 
-function deleteStockFromStorage(name) {
-  const list = getWatchlist().filter(s => s.name !== name);
+function deleteStockFromStorage(name, date) {
+  const list = getWatchlist().filter(s => {
+    if (date) return !(s.name === name && s.date === date);
+    return s.name !== name;
+  });
   saveWatchlist(list);
 }
 
@@ -1060,8 +1076,21 @@ function renderExcelWatchlist() {
     groups[d].push(item);
   });
 
-  Object.keys(groups).forEach(dateKey => {
+  // 날짜 그룹 정렬: 최신 날짜 블록을 최상단에 1순위로 엄격 배치
+  const dateKeys = Object.keys(groups);
+  if (sortMode === 'dateAsc') {
+    dateKeys.sort((a, b) => a.localeCompare(b));
+  } else {
+    // dateDesc 및 기본값: 최신 날짜(예: 2026-10-20 -> 2026-10-19) 우선
+    dateKeys.sort((a, b) => b.localeCompare(a));
+  }
+
+  dateKeys.forEach(dateKey => {
     const items = groups[dateKey];
+    if (sortMode === 'nameAsc') {
+      items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+
     const block = document.createElement('div');
     block.className = 'weekday-block';
 
@@ -1119,7 +1148,7 @@ function renderExcelWatchlist() {
           <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">${stock.foreign || '-'}</td>
           <td style="color:${String(stock.inst).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">${stock.inst || '-'}</td>
           <td style="text-align:center;">
-            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}')" title="삭제">&times;</button>
+            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="삭제">&times;</button>
           </td>
         </tr>
       `;
@@ -1136,9 +1165,10 @@ function renderExcelWatchlist() {
   });
 }
 
-window.handleDeleteStock = function(name) {
-  if (confirm(`'${name}' 종목을 삭제하시겠습니까?`)) {
-    deleteStockFromStorage(name);
+window.handleDeleteStock = function(name, date) {
+  const dateInfo = date ? `(${date}) ` : '';
+  if (confirm(`'${name}' ${dateInfo}종목을 삭제하시겠습니까?`)) {
+    deleteStockFromStorage(name, date);
   }
 };
 
@@ -1257,6 +1287,9 @@ function exportToCsv() {
     return;
   }
 
+  // 최신 일자순으로 정렬
+  list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
   // UTF-8 BOM (\uFEFF) 추가하여 엑셀 한글 깨짐 방지
   let csvContent = '\uFEFF';
   const headers = ['등록일자', '요일', '테마', '종목명', '종목코드', '업종', '현재가(원)', '등락률(%)', '거래대금(억)', '외인순매수', '기관순매수', '추천이유', '메모'];
@@ -1318,7 +1351,10 @@ function exportToMarkdown() {
     groups[d].push(item);
   });
 
-  Object.keys(groups).forEach(dateKey => {
+  // 최신 일자 블록 최상단 배치
+  const dateKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+  dateKeys.forEach(dateKey => {
     md += `### 📅 ${getWeekdayLabel(dateKey)}\n\n`;
     md += `| 테마 | 종목명 (코드) | 현재가 | 등락률 | 거래대금 | 외인 | 기관 | 💡 추천 이유 |\n`;
     md += `| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
