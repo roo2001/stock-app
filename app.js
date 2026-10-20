@@ -625,7 +625,184 @@ function initModals() {
     addModal.classList.add('hidden');
     renderExcelWatchlist();
   });
+
+  // 네이버 증권 차트 모달 (v21) 제어
+  const chartModal = document.getElementById('chartModal');
+  const btnCloseChartModal = document.getElementById('btnCloseChartModal');
+  const btnCloseChartBtn = document.getElementById('btnCloseChartBtn');
+
+  if (btnCloseChartModal) {
+    btnCloseChartModal.addEventListener('click', () => chartModal?.classList.add('hidden'));
+  }
+  if (btnCloseChartBtn) {
+    btnCloseChartBtn.addEventListener('click', () => chartModal?.classList.add('hidden'));
+  }
+
+  // 모달 바깥 어두운 배경 클릭 시 닫기
+  if (chartModal) {
+    chartModal.addEventListener('click', (e) => {
+      if (e.target === chartModal) {
+        chartModal.classList.add('hidden');
+      }
+    });
+  }
+
+  // ESC 키로 모든 모달 닫기
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (chartModal && !chartModal.classList.contains('hidden')) chartModal.classList.add('hidden');
+      if (settingsModal && !settingsModal.classList.contains('hidden')) settingsModal.classList.add('hidden');
+      if (addModal && !addModal.classList.contains('hidden')) addModal.classList.add('hidden');
+    }
+  });
+
+  // 차트 기간 탭 클릭 이벤트 (일봉, 당일, 주봉, 월봉)
+  document.querySelectorAll('.chart-period-tabs .chart-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const period = btn.getAttribute('data-period');
+      switchChartPeriod(period);
+    });
+  });
 }
+
+// ==========================================
+// 네이버 증권 고화질 차트 모달 엔진 (v21)
+// ==========================================
+let currentChartStock = null;
+let currentChartPeriod = 'candleDay'; // 기본값: 일봉 캔들
+
+function handleOpenChartModal(code, name) {
+  const chartModal = document.getElementById('chartModal');
+  if (!chartModal) return;
+
+  // 1. KRX 공식 마스터 종목코드 및 정식 사명 보정
+  const officialCode = getOfficialStockCode(name, code);
+  const officialName = getOfficialStockName(officialCode, name);
+
+  // 2. 관심종목 리스트 또는 마스터 정보에서 최신 시세 데이터 추출
+  const list = getWatchlist();
+  const found = list.find(s => s.code === officialCode || s.name === officialName) || MASTER_STOCK_INFO[officialName] || {};
+
+  currentChartStock = {
+    code: officialCode,
+    name: officialName,
+    theme: found.theme || '추천',
+    price: found.price || 0,
+    rate: found.rate !== undefined ? found.rate : 0.0,
+    open: found.open || 0,
+    high: found.high || 0,
+    low: found.low || 0,
+    reason: found.reason || found.memo || 'AI 추천 관심종목'
+  };
+
+  // 3. 모달 헤더 정보 렌더링
+  const nameEl = document.getElementById('chartStockName');
+  const codeEl = document.getElementById('chartStockCode');
+  const themeEl = document.getElementById('chartStockTheme');
+  const priceEl = document.getElementById('chartStockPrice');
+  const rateEl = document.getElementById('chartStockRate');
+  const openCloseEl = document.getElementById('chartStockOpenClose');
+  const reasonEl = document.getElementById('chartStockReason');
+  const detailLinkEl = document.getElementById('btnNaverDetailLink');
+
+  if (nameEl) nameEl.innerText = currentChartStock.name;
+  if (codeEl) codeEl.innerText = currentChartStock.code;
+  if (themeEl) themeEl.innerText = currentChartStock.theme;
+  if (priceEl) priceEl.innerText = `${Number(currentChartStock.price).toLocaleString()}원`;
+
+  if (rateEl) {
+    const isUp = (Number(currentChartStock.rate) || 0) >= 0;
+    rateEl.className = `rate-badge ${isUp ? 'rate-up' : 'rate-down'}`;
+    rateEl.innerText = `${isUp ? '▲ +' : '▼ '}${Math.abs(currentChartStock.rate).toFixed(2)}%`;
+  }
+
+  if (openCloseEl) {
+    const oprc = Number(currentChartStock.open || 0).toLocaleString();
+    const hgpr = Number(currentChartStock.high || 0).toLocaleString();
+    const lwpr = Number(currentChartStock.low || 0).toLocaleString();
+    openCloseEl.innerText = `시: ${oprc}원 | 고: ${hgpr}원 | 저: ${lwpr}원`;
+  }
+
+  if (reasonEl) reasonEl.innerText = currentChartStock.reason;
+
+  // 4. 네이버 증권 모바일/PC 반응형 상세 링크 바인딩
+  if (detailLinkEl) {
+    detailLinkEl.href = `https://m.stock.naver.com/domestic/stock/${officialCode}/total`;
+  }
+
+  // 5. 기본 선택된 기간(일봉)으로 차트 이미지 로드
+  loadNaverChart(officialCode, currentChartPeriod);
+
+  // 6. 모달 표출
+  chartModal.classList.remove('hidden');
+}
+
+function loadNaverChart(code, period) {
+  const chartImg = document.getElementById('chartImg');
+  const spinner = document.getElementById('chartLoadingSpinner');
+  if (!chartImg) return;
+
+  if (spinner) {
+    spinner.classList.remove('hidden');
+    spinner.innerText = '네이버 증권 차트 불러오는 중...';
+  }
+  chartImg.style.opacity = '0.2';
+
+  const ts = Date.now();
+  let url = '';
+
+  switch (period) {
+    case 'day':
+      // 당일 실시간 틱/분봉 추세선
+      url = `https://financial-vn.pstatic.net/chart/mobile/day/krx/${code}_end.png?_ts=${ts}`;
+      break;
+    case 'candleDay':
+      // 일봉 캔들 차트 (이동평균선 포함)
+      url = `https://financial-vn.pstatic.net/chart/mobile/candle/day/${code}_end.png?_ts=${ts}`;
+      break;
+    case 'candleWeek':
+      // 주봉 캔들 차트
+      url = `https://financial-vn.pstatic.net/chart/mobile/candle/week/${code}_end.png?_ts=${ts}`;
+      break;
+    case 'candleMonth':
+      // 월봉 캔들 차트
+      url = `https://financial-vn.pstatic.net/chart/mobile/candle/month/${code}_end.png?_ts=${ts}`;
+      break;
+    default:
+      url = `https://financial-vn.pstatic.net/chart/mobile/candle/day/${code}_end.png?_ts=${ts}`;
+  }
+
+  chartImg.onload = () => {
+    if (spinner) spinner.classList.add('hidden');
+    chartImg.style.opacity = '1';
+  };
+
+  chartImg.onerror = () => {
+    if (spinner) {
+      spinner.classList.remove('hidden');
+      spinner.innerText = '네이버 차트를 불러올 수 없습니다. 상세 보기를 이용하세요.';
+    }
+  };
+
+  chartImg.src = url;
+}
+
+function switchChartPeriod(period) {
+  currentChartPeriod = period;
+  document.querySelectorAll('.chart-period-tabs .chart-tab-btn').forEach(btn => {
+    if (btn.getAttribute('data-period') === period) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (currentChartStock && currentChartStock.code) {
+    loadNaverChart(currentChartStock.code, currentChartPeriod);
+  }
+}
+
+window.handleOpenChartModal = handleOpenChartModal;
 
 function showSettingsModal() {
   const input = document.getElementById('apiKeyInput');
@@ -1361,16 +1538,19 @@ function renderExcelWatchlist() {
         <tr>
           <td><span class="theme-tag">${stock.theme || '추천'}</span></td>
           <td>
-            <span class="stock-name-cell">${stock.name}</span>
-            <span class="stock-code-cell">${stock.code}</span>
-            ${dateBadgeHtml}
+            <div style="display:inline-flex; align-items:center; flex-wrap:wrap; gap:3px;">
+              <span class="stock-name-cell" onclick="handleOpenChartModal('${stock.code}', '${stock.name}')" title="클릭 시 네이버 실시간 차트 팝업">${stock.name}</span>
+              <span class="stock-code-cell">${stock.code}</span>
+              <a href="https://m.stock.naver.com/domestic/stock/${stock.code}/total" target="_blank" rel="noopener noreferrer" class="stock-naver-link" title="네이버 증권 새 탭 열기">↗</a>
+              ${dateBadgeHtml}
+            </div>
             <span class="stock-reason-badge">💡 이유: ${reasonText}</span>
           </td>
           <td style="color:#94a3b8; font-size:0.78rem;">${stock.sector || '-'}</td>
           <td style="font-weight:700;">${Number(stock.price || 0).toLocaleString()}원</td>
           <td class="${rateClass}">${rateSign}${Math.abs(stock.rate || 0).toFixed(2)}%</td>
           <td style="color:#cbd5e1; font-weight:700;">${stock.tradeValue || 0}억</td>
-          <td style="text-align:center;">
+          <td style="text-align:center; cursor:pointer;" onclick="handleOpenChartModal('${stock.code}', '${stock.name}')" title="클릭 시 네이버 실시간 차트 팝업">
             ${renderHtsCandleSvg(stock)}
           </td>
           <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">

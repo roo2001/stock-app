@@ -953,12 +953,46 @@ textarea#firebaseConfigInput:focus {
 .stock-name-cell {
   font-weight: 800;
   color: #f8fafc;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  text-decoration: underline dotted rgba(148, 163, 184, 0.4);
+  text-underline-offset: 3px;
+  transition: all 0.15s ease-in-out;
+}
+
+.stock-name-cell:hover {
+  color: #38bdf8;
+  text-decoration: underline solid #38bdf8;
 }
 
 .stock-code-cell {
   font-size: 0.72rem;
   color: #94a3b8;
   margin-left: 2px;
+  font-family: monospace;
+}
+
+.stock-naver-link {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-left: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease-in-out;
+  display: inline-block;
+  line-height: 1.2;
+}
+
+.stock-naver-link:hover {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+  transform: translateY(-1px);
 }
 
 .stock-reason-badge {
@@ -1069,3 +1103,147 @@ textarea#firebaseConfigInput:focus {
     font-size: 0.78rem;
   }
 }
+
+/* ==========================================
+   네이버 증권 고화질 차트 팝업 모달 (v21)
+   ========================================== */
+.chart-modal-content {
+  max-width: 580px;
+  width: 95%;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(37, 99, 235, 0.15);
+  padding: 20px 22px;
+  border-radius: 18px;
+  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.chart-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chart-stock-code {
+  font-size: 0.8rem;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.chart-period-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0 12px 0;
+  background: #090d16;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid #1e293b;
+}
+
+.chart-tab-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.chart-tab-btn:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chart-tab-btn.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.45);
+}
+
+.chart-img-container {
+  position: relative;
+  width: 100%;
+  min-height: 270px;
+  background: #000000;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.naver-chart-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  transition: opacity 0.2s ease;
+  object-fit: contain;
+}
+
+.chart-loading {
+  position: absolute;
+  color: #93c5fd;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 8px 16px;
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+}
+
+.chart-reason-box {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+
+.rate-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.rate-badge.rate-up {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.rate-badge.rate-down {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
