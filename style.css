@@ -224,6 +224,41 @@ body {
   border: 1px solid var(--border-color);
 }
 
+.doc-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+
+.doc-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.doc-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-title {
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #f8fafc;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.doc-subtitle {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
 .file-info-text {
   font-size: 0.85rem;
   color: #60a5fa;

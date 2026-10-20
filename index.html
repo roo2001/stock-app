@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -45,7 +45,7 @@
         <!-- 업로드 방식 선택 서브 탭 -->
         <div class="sub-nav">
           <button class="sub-tab-btn active" id="subTabLink">🔗 링크 입력</button>
-          <button class="sub-tab-btn" id="subTabFile">📁 영상·이미지 파일</button>
+          <button class="sub-tab-btn" id="subTabFile">📁 파일 업로드 (영상·PDF·엑셀)</button>
         </div>
 
         <!-- 방식 1: 링크 입력 -->
@@ -55,23 +55,30 @@
             <input type="url" id="videoUrlInput" placeholder="쇼츠 또는 틱톡 링크 붙여넣기..." autocomplete="off">
             <button id="btnPaste" class="btn-secondary" title="클립보드 링크 붙여넣기">📋 붙여넣기</button>
           </div>
-          <p class="caption-text" style="color:#fde047; margin-top:6px; font-size:0.78rem;">💡 <b>100% 정확한 분석 팁:</b> 틱톡/쇼츠 화면 캡처본(스크린샷)을 <b>[📁 영상·이미지 파일]</b> 탭에 넣으시면 화면 속 실제 종목과 자막을 눈으로 직접 보고 정확하게 분석합니다.</p>
+          <p class="caption-text" style="color:#fde047; margin-top:6px; font-size:0.78rem;">💡 <b>100% 정확한 분석 팁:</b> 틱톡/쇼츠 화면 캡처본, <b>증권사 PDF 리포트</b>, <b>추천주 엑셀</b>을 <b>[📁 파일 업로드]</b> 탭에 넣으시면 AI가 실제 문서와 화면을 직접 보고 정밀 분석합니다.</p>
         </div>
 
         <!-- 방식 2: 파일 업로드 -->
         <div id="inputFileSection" class="hidden">
-          <label class="input-label">📸 주식 차트 사진 또는 쇼츠 동영상 파일 (.mp4, .png, .jpg 등)</label>
+          <label class="input-label">📁 차트 사진, 쇼츠 영상, 증권사 PDF 리포트, 엑셀(.xlsx/.xls/.csv) 파일</label>
           <div class="drop-zone" id="dropZone">
-            <input type="file" id="mediaFileInput" accept="image/*,video/*" class="hidden-file-input">
+            <input type="file" id="mediaFileInput" accept="image/*,video/*,application/pdf,.pdf,.xlsx,.xls,.csv,text/csv" class="hidden-file-input">
             <div class="drop-content" id="dropContent">
-              <span class="drop-icon">🖼️</span>
-              <p class="drop-text">여기를 터치하여 <b>사진/동영상</b>을 선택하세요</p>
-              <span class="drop-hint">차트 캡처본, 호가창 화면, 쇼츠 영상 모두 지원</span>
+              <span class="drop-icon">📑</span>
+              <p class="drop-text">여기를 터치하여 <b>사진·영상·PDF·엑셀 파일</b>을 선택하세요</p>
+              <span class="drop-hint">차트 캡처본, 쇼츠 영상, 증권사 리포트 PDF, 종목 엑셀 모두 지원</span>
             </div>
             <!-- 미리보기 -->
             <div id="previewContainer" class="preview-container hidden">
               <img id="imagePreview" class="preview-media hidden" alt="미리보기">
               <video id="videoPreview" class="preview-media hidden" controls playsinline></video>
+              <div id="docPreview" class="doc-preview hidden">
+                <span class="doc-icon" id="docPreviewIcon">📄</span>
+                <div class="doc-details">
+                  <div id="docPreviewTitle" class="doc-title"></div>
+                  <div id="docPreviewSubtitle" class="doc-subtitle"></div>
+                </div>
+              </div>
               <div id="fileInfoText" class="file-info-text"></div>
               <button id="btnRemoveFile" class="btn-remove-file" title="파일 삭제">&times; 파일 제거</button>
             </div>
@@ -222,7 +229,9 @@
     </div>
   </div>
 
+  <!-- 엑셀(.xlsx, .xls) 파서 (SheetJS) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

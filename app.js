@@ -62,6 +62,8 @@ function guessSector(theme = '', name = '') {
 let currentAnalysis = null;
 let currentUploadedFile = null;
 let currentUploadedBase64 = null;
+let currentUploadedText = null;
+let currentUploadedType = null; // 'image' | 'video' | 'pdf' | 'excel' | 'csv'
 let liveInterval = null;
 
 // ==========================================
@@ -282,7 +284,7 @@ function initSubTabs() {
 }
 
 // ==========================================
-// 3. 파일 업로드 (영상 및 이미지) 제어
+// 3. 파일 업로드 (영상, 이미지, PDF 리포트, 엑셀/CSV) 제어
 // ==========================================
 function initFileUpload() {
   const fileInput = document.getElementById('mediaFileInput');
@@ -291,6 +293,10 @@ function initFileUpload() {
   const previewContainer = document.getElementById('previewContainer');
   const imagePreview = document.getElementById('imagePreview');
   const videoPreview = document.getElementById('videoPreview');
+  const docPreview = document.getElementById('docPreview');
+  const docPreviewIcon = document.getElementById('docPreviewIcon');
+  const docPreviewTitle = document.getElementById('docPreviewTitle');
+  const docPreviewSubtitle = document.getElementById('docPreviewSubtitle');
   const fileInfoText = document.getElementById('fileInfoText');
   const btnRemove = document.getElementById('btnRemoveFile');
 
@@ -326,11 +332,103 @@ function initFileUpload() {
 
   function handleFileSelected(file) {
     currentUploadedFile = file;
+    currentUploadedBase64 = null;
+    currentUploadedText = null;
+    currentUploadedType = null;
+
     dropContent.classList.add('hidden');
     previewContainer.classList.remove('hidden');
-    fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`;
+    fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
 
-    if (file.type.startsWith('image/')) {
+    const fileName = file.name.toLowerCase();
+
+    // 1. PDF 문서 (증권사 리포트)
+    if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
+      currentUploadedType = 'pdf';
+      imagePreview.classList.add('hidden');
+      videoPreview.classList.add('hidden');
+      if (docPreview) {
+        docPreview.classList.remove('hidden');
+        docPreviewIcon.innerText = '📄';
+        docPreviewTitle.innerText = file.name;
+        docPreviewSubtitle.innerText = '증권사 리서치 / 종목 분석 PDF 리포트 준비 완료';
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        currentUploadedBase64 = event.target.result.split(',')[1];
+      };
+      reader.readAsDataURL(file);
+
+    // 2. 엑셀 파일 (.xlsx, .xls)
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || file.type.includes('spreadsheet') || file.type.includes('excel')) {
+      currentUploadedType = 'excel';
+      imagePreview.classList.add('hidden');
+      videoPreview.classList.add('hidden');
+      if (docPreview) {
+        docPreview.classList.remove('hidden');
+        docPreviewIcon.innerText = '📊';
+        docPreviewTitle.innerText = file.name;
+        docPreviewSubtitle.innerText = '엑셀 스프레드시트 분석 준비 중...';
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          if (typeof XLSX !== 'undefined') {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            let allText = '';
+            let totalRows = 0;
+            workbook.SheetNames.forEach(sheetName => {
+              const sheet = workbook.Sheets[sheetName];
+              const csv = XLSX.utils.sheet_to_csv(sheet);
+              allText += `\n[시트명: ${sheetName}]\n` + csv;
+              const json = XLSX.utils.sheet_to_json(sheet);
+              totalRows += json.length;
+            });
+            currentUploadedText = allText.trim();
+            if (docPreviewSubtitle) {
+              docPreviewSubtitle.innerText = `총 ${workbook.SheetNames.length}개 시트 (${totalRows}개 행) 데이터 변환 완료`;
+            }
+          } else {
+            const decoder = new TextDecoder('utf-8');
+            currentUploadedText = decoder.decode(e.target.result);
+            if (docPreviewSubtitle) docPreviewSubtitle.innerText = '엑셀 원문 데이터 추출 완료';
+          }
+        } catch (err) {
+          console.warn('엑셀 파싱 오류:', err);
+          if (docPreviewSubtitle) docPreviewSubtitle.innerText = '엑셀 데이터 변환 완료';
+        }
+      };
+      reader.readAsArrayBuffer(file);
+
+    // 3. CSV 텍스트 파일 (.csv)
+    } else if (fileName.endsWith('.csv') || file.type === 'text/csv') {
+      currentUploadedType = 'csv';
+      imagePreview.classList.add('hidden');
+      videoPreview.classList.add('hidden');
+      if (docPreview) {
+        docPreview.classList.remove('hidden');
+        docPreviewIcon.innerText = '📑';
+        docPreviewTitle.innerText = file.name;
+        docPreviewSubtitle.innerText = 'CSV 관심종목 데이터 준비 중...';
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        currentUploadedText = e.target.result;
+        const lineCount = (e.target.result.match(/\n/g) || []).length;
+        if (docPreviewSubtitle) {
+          docPreviewSubtitle.innerText = `CSV 데이터 약 ${lineCount}개 행 변환 완료`;
+        }
+      };
+      reader.readAsText(file);
+
+    // 4. 이미지 파일 (차트 캡처, 스크린샷)
+    } else if (file.type.startsWith('image/')) {
+      currentUploadedType = 'image';
+      if (docPreview) docPreview.classList.add('hidden');
       videoPreview.classList.add('hidden');
       imagePreview.classList.remove('hidden');
 
@@ -341,7 +439,10 @@ function initFileUpload() {
       };
       reader.readAsDataURL(file);
 
+    // 5. 비디오 파일 (쇼츠 영상)
     } else if (file.type.startsWith('video/')) {
+      currentUploadedType = 'video';
+      if (docPreview) docPreview.classList.add('hidden');
       imagePreview.classList.add('hidden');
       videoPreview.classList.remove('hidden');
 
@@ -365,15 +466,31 @@ function initFileUpload() {
           console.warn('비디오 캡처 오류:', err);
         }
       };
+    } else {
+      currentUploadedType = 'doc';
+      if (docPreview) {
+        docPreview.classList.remove('hidden');
+        docPreviewIcon.innerText = '📁';
+        docPreviewTitle.innerText = file.name;
+        docPreviewSubtitle.innerText = '문서 파일 준비 완료';
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        currentUploadedBase64 = event.target.result.split(',')[1];
+      };
+      reader.readAsDataURL(file);
     }
   }
 
   function clearUploadedFile() {
     currentUploadedFile = null;
     currentUploadedBase64 = null;
+    currentUploadedText = null;
+    currentUploadedType = null;
     fileInput.value = '';
     imagePreview.src = '';
     videoPreview.src = '';
+    if (docPreview) docPreview.classList.add('hidden');
     dropContent.classList.remove('hidden');
     previewContainer.classList.add('hidden');
   }
@@ -489,8 +606,8 @@ async function handleAnalyze() {
     return;
   }
 
-  if (!isLinkMode && (!currentUploadedFile || !currentUploadedBase64)) {
-    alert('분석할 이미지나 동영상 파일을 먼저 선택해 주세요.');
+  if (!isLinkMode && (!currentUploadedFile || (!currentUploadedBase64 && !currentUploadedText))) {
+    alert('분석할 파일(영상, 이미지, PDF 리포트, 엑셀 파일 등)을 먼저 선택해 주세요.');
     return;
   }
 
@@ -503,6 +620,16 @@ async function handleAnalyze() {
 
   const loadingBox = document.getElementById('loadingBox');
   const resultCard = document.getElementById('resultCard');
+  const loadingStatusText = document.getElementById('loadingStatusText');
+  if (loadingStatusText) {
+    if (currentUploadedType === 'pdf') {
+      loadingStatusText.innerText = '구글 Gemini AI가 증권사 PDF 리포트를 정밀 분석 중입니다...';
+    } else if (currentUploadedType === 'excel' || currentUploadedType === 'csv') {
+      loadingStatusText.innerText = '구글 Gemini AI가 엑셀 스프레드시트 종목 데이터를 분석 중입니다...';
+    } else {
+      loadingStatusText.innerText = '구글 Gemini AI가 주식 영상/차트 화면을 분석 중입니다...';
+    }
+  }
 
   loadingBox.classList.remove('hidden');
   resultCard.classList.add('hidden');
@@ -512,18 +639,18 @@ async function handleAnalyze() {
     
     const systemPrompt = `
 당신은 대한민국 최고 수준의 전문 주식 리서치 애널리스트입니다.
-제공된 주식 숏폼 영상/차트 화면을 분석하여, 영상 내용에 나오는 **모든 종목(메인 종목뿐만 아니라 함께 언급된 수혜주, 관련주, 테마주 일체)**을 누락 없이 "stocks" 배열에 전수 추출하세요.
+제공된 주식 숏폼 영상/차트 화면, 증권사 PDF 리포트, 또는 엑셀 스프레드시트를 분석하여, 자료에 나오는 **모든 종목(메인 종목뿐만 아니라 함께 언급된 수혜주, 관련주, 테마주 일체)**을 누락 없이 "stocks" 배열에 전수 추출하세요.
 
 [핵심 분석 및 날짜 추출 규칙]:
-1. **날짜(date) 최우선 추출 (가장 중요)**: 영상의 제목, 자막, 화면 텍스트, 칠판, 차트 화면 상단에 표기된 날짜(예: "10월 16일", "10.16-금", "10/17", "10.15-목" 등)를 반드시 최우선으로 정밀 감지하여 해당 일자를 "YYYY-MM-DD" 형식으로 "date"에 입력하세요. 만약 연도가 없으면 현재 연도(2026년 또는 2024년)를 붙여 "YYYY-MM-DD"로 완성하세요. 영상 내에 날짜 단서가 전혀 없을 때에만 오늘 기준일(${todayStr})을 사용하세요.
-2. **추천 이유(reason)**: 화자/유튜버가 해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 북미 수출, 수급, 캔들 지지 등)를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
+1. **날짜(date) 최우선 추출 (가장 중요)**: 자료(영상 제목, 자막, 화면 텍스트, PDF 문서 상단 발행일자, 엑셀 날짜 열 등)에 표기된 날짜(예: "10월 16일", "10.16", "2026-10-16", "10/17" 등)를 반드시 최우선으로 정밀 감지하여 해당 일자를 "YYYY-MM-DD" 형식으로 "date"에 입력하세요. 만약 연도가 없으면 현재 연도(2026년 또는 2024년)를 붙여 "YYYY-MM-DD"로 완성하세요. 문서/영상 내에 날짜 단서가 전혀 없을 때에만 오늘 기준일(${todayStr})을 사용하세요.
+2. **추천 이유(reason)**: 해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 북미 수출, 수급, 캔들 지지, 밸류에이션 등)를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
 3. **업종(sector)**: 한국거래소 공식 업종명(전기장비, 반도체, 통신장비, 제약바이오, 2차전지 등)을 정확히 기재하세요. '일반' 같은 모호한 단어는 금지합니다.
 
 반드시 아래 순수 JSON 형식으로만 응답하세요. (마크다운 코드블록 제외)
 
 JSON 스키마:
 {
-  "date": "영상 속에서 감지된 날짜 YYYY-MM-DD (예: 2026-10-16)",
+  "date": "자료에서 감지된 날짜 YYYY-MM-DD (예: 2026-10-16)",
   "trading_type": "단기스윙 / 단타 / 중장기 / 테마주 중 1개",
   "sentiment": "긍정·매수 / 중립·관망 / 매도·주의 중 1개",
   "stocks": [
@@ -532,17 +659,17 @@ JSON 스키마:
       "code": "6자리 공식종목코드 (예: 062040)",
       "theme": "테마명 (예: 변압기/전력망)",
       "sector": "공식 업종분류 (예: 전기장비, 반도체, 통신장비, 제약바이오 등)",
-      "current_price": "영상 속 가격 또는 현재 추정 시세 (숫자만, 예: 188800)",
+      "current_price": "자료 속 가격 또는 현재 추정 시세 (숫자만, 예: 188800)",
       "trade_value": "추정 거래대금 (억원 단위 숫자, 예: 850)",
       "support": "지지선 가격 (예: 180,000원 또는 미제시)",
       "target": "목표가 (예: 220,000원 또는 미제시)",
-      "reason": "추천 이유: 영상에서 화자가 이 종목을 추천하거나 강조한 핵심 근거 요약"
+      "reason": "추천 이유: 화자 또는 리포트가 이 종목을 추천하거나 강조한 핵심 근거 요약"
     }
   ],
   "summary_3lines": [
     "1. 첫 번째 핵심 모멘텀/섹터 시황 요약",
-    "2. 두 번째 차트/수급 흐름 요약",
-    "3. 세 번째 화자의 매매 전략 및 결론 요약"
+    "2. 두 번째 차트/수급/실적 흐름 요약",
+    "3. 세 번째 핵심 투자 전략 및 결론 요약"
   ],
   "support": "대표 지지선 가격",
   "resistance": "대표 저항선 가격",
@@ -556,10 +683,22 @@ JSON 스키마:
 
     if (isLinkMode) {
       parts.push({ text: `분석할 주식 쇼츠 영상 링크: ${url}\n오늘 기준일: ${todayStr}\n영상 제목이나 내용, 자막에 언급된 날짜를 최우선으로 찾아 'date'에 넣고, 언급된 모든 종목과 추천 이유를 빠짐없이 전수 추출하여 JSON으로 요약해 주세요.` });
+    } else if (currentUploadedType === 'pdf') {
+      parts.push({
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: currentUploadedBase64
+        }
+      });
+      parts.push({ text: `첨부된 증권사 리서치/주식 분석 PDF 리포트를 정밀 분석해 주세요. 문서 발행일자(date)와 본문/표에 언급된 모든 추천 종목, 목표주가, 투자의견, 추천 핵심 근거/모멘텀을 전수 추출하여 JSON으로 요약해 주세요. 오늘 기준일: ${todayStr}` });
+    } else if (currentUploadedType === 'excel' || currentUploadedType === 'csv') {
+      parts.push({
+        text: `첨부된 엑셀/스프레드시트 데이터(표 형식)를 분석해 주세요. 파일 내에 표기된 날짜(date)와 모든 종목명, 목표가, 현재가, 추천 사유/메모를 빠짐없이 전수 추출하여 JSON 스키마 규격으로 정돈해 주세요. 오늘 기준일: ${todayStr}\n\n[스프레드시트 데이터 원문]:\n${currentUploadedText}`
+      });
     } else {
       parts.push({
         inlineData: {
-          mimeType: 'image/jpeg',
+          mimeType: (currentUploadedFile && currentUploadedFile.type && currentUploadedFile.type.startsWith('image/')) ? currentUploadedFile.type : 'image/jpeg',
           data: currentUploadedBase64
         }
       });
