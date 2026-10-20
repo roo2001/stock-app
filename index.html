@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -155,7 +155,9 @@
           <select id="sortOrderSelect">
             <option value="dateDesc" selected>📅 최신 요일순</option>
             <option value="dateAsc">📅 과거 요일순</option>
-            <option value="nameAsc">가나다순</option>
+            <option value="themeAsc">🏷️ 테마별</option>
+            <option value="sectorAsc">🏭 업종별</option>
+            <option value="nameAsc">🔤 가나다순</option>
           </select>
           <button id="btnSyncDevices" class="btn-sub" title="스마트폰 ↔ PC 관심종목 원클릭 동기화 (기기 간 전송)">📲 기기 동기화</button>
           <button id="btnRestoreCloud" class="btn-sub" title="깃허브 서버 원본(watchlist.json) 불러오기 및 안전 복구">☁️ 클라우드 복구</button>
@@ -232,6 +234,6 @@
   <!-- 엑셀(.xlsx, .xls) 파서 (SheetJS) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

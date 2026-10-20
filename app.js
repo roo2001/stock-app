@@ -1061,43 +1061,78 @@ function renderExcelWatchlist() {
   }
 
   const sortMode = document.getElementById('sortOrderSelect')?.value || 'dateDesc';
-  if (sortMode === 'dateDesc') {
-    list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  } else if (sortMode === 'dateAsc') {
-    list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-  } else if (sortMode === 'nameAsc') {
-    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  }
 
+  // 1. 선택된 정렬 모드에 따른 그룹화(Grouping)
   const groups = {};
-  list.forEach(item => {
-    const d = item.date || '날짜 미상';
-    if (!groups[d]) groups[d] = [];
-    groups[d].push(item);
-  });
 
-  // 날짜 그룹 정렬: 최신 날짜 블록을 최상단에 1순위로 엄격 배치
-  const dateKeys = Object.keys(groups);
-  if (sortMode === 'dateAsc') {
-    dateKeys.sort((a, b) => a.localeCompare(b));
+  if (sortMode === 'themeAsc') {
+    // 🏷️ 테마별 그룹화
+    list.forEach(item => {
+      const key = item.theme || '기타 테마';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+  } else if (sortMode === 'sectorAsc') {
+    // 🏭 업종별 그룹화
+    list.forEach(item => {
+      const key = item.sector || '기타 업종';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    });
+  } else if (sortMode === 'nameAsc') {
+    // 🔤 전체 종목 가나다순 (통합 테이블)
+    groups['전체'] = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
   } else {
-    // dateDesc 및 기본값: 최신 날짜(예: 2026-10-20 -> 2026-10-19) 우선
-    dateKeys.sort((a, b) => b.localeCompare(a));
+    // 📅 날짜별 그룹화 (dateDesc / dateAsc)
+    list.forEach(item => {
+      const d = item.date || '날짜 미상';
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(item);
+    });
   }
 
-  dateKeys.forEach(dateKey => {
-    const items = groups[dateKey];
-    if (sortMode === 'nameAsc') {
-      items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  // 2. 그룹 키 정렬 (블록 표시 순서)
+  let groupKeys = Object.keys(groups);
+  if (sortMode === 'dateAsc') {
+    groupKeys.sort((a, b) => a.localeCompare(b));
+  } else if (sortMode === 'dateDesc') {
+    groupKeys.sort((a, b) => b.localeCompare(a));
+  } else if (sortMode === 'themeAsc' || sortMode === 'sectorAsc') {
+    groupKeys.sort((a, b) => a.localeCompare(b, 'ko'));
+  }
+
+  // 3. 각 그룹 블록 렌더링
+  groupKeys.forEach(groupKey => {
+    const items = groups[groupKey];
+
+    // 블록 내부 종목 2차 정렬: 테마/업종별일 때는 최신 날짜순 -> 가나다순 정렬
+    if (sortMode === 'themeAsc' || sortMode === 'sectorAsc') {
+      items.sort((a, b) => {
+        const dateCmp = (b.date || '').localeCompare(a.date || '');
+        if (dateCmp !== 0) return dateCmp;
+        return (a.name || '').localeCompare(b.name || '', 'ko');
+      });
     }
 
     const block = document.createElement('div');
     block.className = 'weekday-block';
 
+    // 헤더 라벨 구성
+    let headerTitle = '';
+    if (sortMode === 'themeAsc') {
+      headerTitle = `🏷️ 테마: ${groupKey}`;
+    } else if (sortMode === 'sectorAsc') {
+      headerTitle = `🏭 업종: ${groupKey}`;
+    } else if (sortMode === 'nameAsc') {
+      headerTitle = `🔤 전체 관심종목 (가나다순)`;
+    } else {
+      headerTitle = `📅 ${getWeekdayLabel(groupKey)}`;
+    }
+
     const header = document.createElement('div');
     header.className = 'weekday-header';
     header.innerHTML = `
-      <span>📅 ${getWeekdayLabel(dateKey)}</span>
+      <span>${headerTitle}</span>
       <span style="font-size:0.82rem; font-weight:600; opacity:0.9;">총 ${items.length}종목 감시</span>
     `;
     block.appendChild(header);
@@ -1130,12 +1165,19 @@ function renderExcelWatchlist() {
       const rateSign = isUp ? '▲ +' : '▼ ';
       const reasonText = stock.reason || stock.memo || '쇼츠 AI 분석 추천';
 
+      // 테마/업종/가나다순 정렬 시, 어떤 날짜에 추천된 종목인지 알 수 있도록 날짜 배지 표시
+      const showDateTag = (sortMode === 'themeAsc' || sortMode === 'sectorAsc' || sortMode === 'nameAsc') && stock.date;
+      const dateBadgeHtml = showDateTag 
+        ? `<span class="stock-date-tag" style="background:rgba(37,99,235,0.2); color:#93c5fd; border:1px solid rgba(59,130,246,0.3); padding:1px 6px; border-radius:4px; font-size:0.75rem; font-weight:700; margin-left:4px;">📅 ${stock.date}</span>` 
+        : '';
+
       tableHtml += `
         <tr>
           <td><span class="theme-tag">${stock.theme || '추천'}</span></td>
           <td>
             <span class="stock-name-cell">${stock.name}</span>
             <span class="stock-code-cell">${stock.code}</span>
+            ${dateBadgeHtml}
             <span class="stock-reason-badge">💡 이유: ${reasonText}</span>
           </td>
           <td style="color:#94a3b8; font-size:0.78rem;">${stock.sector || '-'}</td>
@@ -1287,8 +1329,20 @@ function exportToCsv() {
     return;
   }
 
-  // 최신 일자순으로 정렬
-  list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sortMode = document.getElementById('sortOrderSelect')?.value || 'dateDesc';
+
+  // 현재 선택된 정렬 기준에 맞춰 CSV 행 정렬
+  if (sortMode === 'themeAsc') {
+    list.sort((a, b) => (a.theme || '').localeCompare(b.theme || '', 'ko'));
+  } else if (sortMode === 'sectorAsc') {
+    list.sort((a, b) => (a.sector || '').localeCompare(b.sector || '', 'ko'));
+  } else if (sortMode === 'nameAsc') {
+    list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+  } else if (sortMode === 'dateAsc') {
+    list.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  } else {
+    list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }
 
   // UTF-8 BOM (\uFEFF) 추가하여 엑셀 한글 깨짐 방지
   let csvContent = '\uFEFF';
@@ -1340,37 +1394,75 @@ function exportToMarkdown() {
     return;
   }
 
+  const sortMode = document.getElementById('sortOrderSelect')?.value || 'dateDesc';
   const today = new Date().toISOString().split('T')[0];
+
+  const sortLabels = {
+    dateDesc: '📅 최신 요일순',
+    dateAsc: '📅 과거 요일순',
+    themeAsc: '🏷️ 테마별',
+    sectorAsc: '🏭 업종별',
+    nameAsc: '🔤 가나다순'
+  };
+
   let md = `# 📊 주식 쇼츠 관심종목 매매일지 (${today})\n\n`;
-  md += `> 총 **${list.length}개 종목** 감시 중 (주식 쇼츠 AI 실시간 금융 분석)\n\n`;
+  md += `> 총 **${list.length}개 종목** 감시 중 (정렬 기준: ${sortLabels[sortMode] || '최신 요일순'})\n\n`;
 
   const groups = {};
-  list.forEach(item => {
-    const d = item.date || today;
-    if (!groups[d]) groups[d] = [];
-    groups[d].push(item);
-  });
+  if (sortMode === 'themeAsc') {
+    list.forEach(item => {
+      const k = item.theme || '기타 테마';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(item);
+    });
+  } else if (sortMode === 'sectorAsc') {
+    list.forEach(item => {
+      const k = item.sector || '기타 업종';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(item);
+    });
+  } else if (sortMode === 'nameAsc') {
+    groups['전체 종목 (가나다순)'] = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+  } else {
+    list.forEach(item => {
+      const d = item.date || today;
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(item);
+    });
+  }
 
-  // 최신 일자 블록 최상단 배치
-  const dateKeys = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  let groupKeys = Object.keys(groups);
+  if (sortMode === 'dateAsc') {
+    groupKeys.sort((a, b) => a.localeCompare(b));
+  } else if (sortMode === 'dateDesc') {
+    groupKeys.sort((a, b) => b.localeCompare(a));
+  } else if (sortMode === 'themeAsc' || sortMode === 'sectorAsc') {
+    groupKeys.sort((a, b) => a.localeCompare(b, 'ko'));
+  }
 
-  dateKeys.forEach(dateKey => {
-    md += `### 📅 ${getWeekdayLabel(dateKey)}\n\n`;
-    md += `| 테마 | 종목명 (코드) | 현재가 | 등락률 | 거래대금 | 외인 | 기관 | 💡 추천 이유 |\n`;
-    md += `| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
+  groupKeys.forEach(groupKey => {
+    let headerText = '';
+    if (sortMode === 'themeAsc') headerText = `🏷️ 테마: ${groupKey}`;
+    else if (sortMode === 'sectorAsc') headerText = `🏭 업종: ${groupKey}`;
+    else if (sortMode === 'nameAsc') headerText = `🔤 ${groupKey}`;
+    else headerText = `📅 ${getWeekdayLabel(groupKey)}`;
 
-    groups[dateKey].forEach(stock => {
+    md += `### ${headerText}\n\n`;
+    md += `| 일자 | 테마 | 종목명 (코드) | 현재가 | 등락률 | 거래대금 | 외인 | 기관 | 💡 추천 이유 |\n`;
+    md += `| :---: | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
+
+    groups[groupKey].forEach(stock => {
       const sign = (stock.rate || 0) >= 0 ? '+' : '';
       const rateStr = `${sign}${stock.rate || 0}%`;
       const priceStr = Number(stock.price || 0).toLocaleString() + '원';
       const reasonStr = (stock.reason || stock.memo || '쇼츠 AI 추천').replace(/\|/g, '/');
-      md += `| ${stock.theme || '추천'} | **${stock.name}** (${stock.code || '-'}) | ${priceStr} | ${rateStr} | ${stock.tradeValue || 0}억 | ${stock.foreign || '-'} | ${stock.inst || '-'} | ${reasonStr} |\n`;
+      md += `| ${stock.date || '-'} | ${stock.theme || '추천'} | **${stock.name}** (${stock.code || '-'}) | ${priceStr} | ${rateStr} | ${stock.tradeValue || 0}억 | ${stock.foreign || '-'} | ${stock.inst || '-'} | ${reasonStr} |\n`;
     });
     md += '\n';
   });
 
   navigator.clipboard.writeText(md).then(() => {
-    alert('📋 [마크다운 매매일지 복사 완료!]\n\n옵시디언(Obsidian), 노션(Notion), 카카오톡에 바로 붙여넣기(Ctrl+V)하세요!');
+    alert('📋 [마크다운 매매일지 복사 완료!]\n\n선택하신 정렬 방식대로 옵시디언, 노션, 카카오톡에 바로 붙여넣기(Ctrl+V)하세요!');
   }).catch(err => {
     alert('클립보드 복사 권한이 필요합니다: ' + err);
   });
