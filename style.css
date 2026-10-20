@@ -1091,7 +1091,6 @@ textarea#firebaseConfigInput:focus {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.84rem;
-  min-width: 980px;
 }
 
 .excel-table th {
@@ -1105,9 +1104,40 @@ textarea#firebaseConfigInput:focus {
 }
 
 .excel-table th:first-child,
-.excel-table th:nth-child(2),
 .excel-table th:nth-child(3) {
   text-align: left;
+}
+
+.excel-table th:nth-child(2),
+.excel-table td:nth-child(2) {
+  text-align: left;
+  max-width: 320px;
+  white-space: normal;
+}
+
+.stock-reason-badge {
+  display: block;
+  white-space: normal;
+  max-width: 310px;
+  font-size: 0.76rem;
+  color: #fde047;
+  font-weight: 500;
+  line-height: 1.35;
+  margin-top: 4px;
+  background: rgba(253, 224, 71, 0.08);
+  padding: 4px 6px;
+  border-radius: 4px;
+  border-left: 2px solid #eab308;
+  word-break: keep-all;
+}
+
+.stock-levels-badge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 310px;
+  white-space: normal;
+  margin-top: 4px;
 }
 
 /* 관리 열 우측 고정 (Sticky) - separate 모드에서 완벽 구동 */
@@ -1132,7 +1162,6 @@ textarea#firebaseConfigInput:focus {
 }
 
 .excel-table td:first-child,
-.excel-table td:nth-child(2),
 .excel-table td:nth-child(3) {
   text-align: left;
 }
