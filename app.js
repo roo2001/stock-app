@@ -553,6 +553,8 @@ function initModals() {
   document.getElementById('btnOpenAddModal').addEventListener('click', () => {
     document.getElementById('addStockName').value = '';
     document.getElementById('addStockCode').value = '';
+    const priceInput = document.getElementById('addStockPrice');
+    if (priceInput) priceInput.value = '';
     const themeInput = document.getElementById('addStockTheme');
     if (themeInput) themeInput.value = '';
     const reasonInput = document.getElementById('addStockReason');
@@ -600,6 +602,8 @@ function initModals() {
   document.getElementById('btnConfirmAddStock').addEventListener('click', () => {
     let name = document.getElementById('addStockName').value.trim();
     let code = document.getElementById('addStockCode').value.trim();
+    const priceRaw = document.getElementById('addStockPrice')?.value.replace(/[^0-9]/g, '');
+    const manualPrice = priceRaw ? Number(priceRaw) : 0;
     const theme = document.getElementById('addStockTheme')?.value.trim();
     const reason = document.getElementById('addStockReason')?.value.trim();
     const target = document.getElementById('addStockTarget')?.value.trim();
@@ -619,21 +623,22 @@ function initModals() {
     code = officialCode;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const master = MASTER_STOCK_INFO[name] || {};
+    const master = MASTER_STOCK_INFO[name] || MASTER_STOCK_INFO[code] || {};
+    const finalPrice = manualPrice > 0 ? manualPrice : (master.price || 0);
 
     const newItem = {
       theme: theme || master.theme || '직접등록',
       name,
       code: code || master.code || '000000',
       sector: master.sector || guessSector(theme, name),
-      price: master.price || 0,
+      price: finalPrice,
       change: master.change || 0,
       rate: master.rate !== undefined ? master.rate : 0.0,
       volume: master.volume || 0,
-      tradeValue: master.tradeValue || 0,
-      open: master.open || 0,
-      high: master.high || 0,
-      low: master.low || 0,
+      tradeValue: master.tradeValue || (finalPrice > 0 ? 10 : 0),
+      open: master.open || finalPrice,
+      high: master.high || finalPrice,
+      low: master.low || finalPrice,
       foreign: master.foreign || '-',
       foreignLive: master.foreignLive || null,
       inst: master.inst || '-',
@@ -711,6 +716,13 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
     btnCloseEditModal.addEventListener('click', () => editStockModal?.classList.add('hidden'));
   }
 
+  // 종목 삭제 확인 커스텀 모달 (v26 - 브라우저 confirm 완전 대체)
+  const deleteStockModal = document.getElementById('deleteStockModal');
+  const btnCancelDelete = document.getElementById('btnCancelDelete');
+  if (btnCancelDelete) {
+    btnCancelDelete.addEventListener('click', () => deleteStockModal?.classList.add('hidden'));
+  }
+
   if (btnConfirmEditStock) {
     btnConfirmEditStock.addEventListener('click', () => {
       const origName = document.getElementById('editOriginalName').value;
@@ -718,6 +730,8 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
 
       let name = document.getElementById('editStockName').value.trim();
       let code = document.getElementById('editStockCode').value.trim();
+      const priceRaw = document.getElementById('editStockPrice')?.value.replace(/[^0-9]/g, '');
+      const manualPrice = priceRaw ? Number(priceRaw) : 0;
       const theme = document.getElementById('editStockTheme')?.value.trim();
       const sector = document.getElementById('editStockSector')?.value.trim();
       const reason = document.getElementById('editStockReason')?.value.trim();
@@ -746,6 +760,10 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
         const item = list[idx];
         item.name = finalName;
         item.code = finalCode;
+        if (manualPrice > 0) {
+          item.price = manualPrice;
+          item.tradeValue = item.tradeValue || 10;
+        }
         if (theme) item.theme = theme;
         item.sector = sector || guessSector(item.theme, item.name);
         if (reason) item.reason = reason;
@@ -763,7 +781,7 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
           fetchLiveNaverStockPrice(finalCode, finalName);
         }
 
-        alert(`✅ '${finalName}' (${finalCode}) 종목 정보가 성공적으로 수정되었습니다!\n실시간 시세가 갱신됩니다.`);
+        alert(`✅ '${finalName}' (${finalCode}) 종목 정보가 성공적으로 수정되었습니다!`);
       } else {
         alert('수정할 기존 종목 데이터를 찾을 수 없습니다.');
       }
@@ -810,6 +828,13 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
       }
     });
   }
+  if (deleteStockModal) {
+    deleteStockModal.addEventListener('click', (e) => {
+      if (e.target === deleteStockModal) {
+        deleteStockModal.classList.add('hidden');
+      }
+    });
+  }
 
   // ESC 키로 모든 모달 닫기
   window.addEventListener('keydown', (e) => {
@@ -818,6 +843,7 @@ ${(currentChartStock.summary_3lines || []).map(s => '• ' + s).join('\n')}`;
       if (settingsModal && !settingsModal.classList.contains('hidden')) settingsModal.classList.add('hidden');
       if (addModal && !addModal.classList.contains('hidden')) addModal.classList.add('hidden');
       if (editStockModal && !editStockModal.classList.contains('hidden')) editStockModal.classList.add('hidden');
+      if (deleteStockModal && !deleteStockModal.classList.contains('hidden')) deleteStockModal.classList.add('hidden');
     }
   });
 
@@ -848,6 +874,7 @@ function handleOpenEditModal(name, date) {
   // 폼에 기존 정보 세팅
   const nameEl = document.getElementById('editStockName');
   const codeEl = document.getElementById('editStockCode');
+  const priceEl = document.getElementById('editStockPrice');
   const themeEl = document.getElementById('editStockTheme');
   const sectorEl = document.getElementById('editStockSector');
   const reasonEl = document.getElementById('editStockReason');
@@ -859,6 +886,7 @@ function handleOpenEditModal(name, date) {
 
   if (nameEl) nameEl.value = item.name || '';
   if (codeEl) codeEl.value = (item.code && item.code !== '000000') ? item.code : getOfficialStockCode(item.name);
+  if (priceEl) priceEl.value = item.price ? Number(item.price).toLocaleString() + '원' : '';
   if (themeEl) themeEl.value = item.theme || '';
   if (sectorEl) sectorEl.value = item.sector || '';
   if (reasonEl) reasonEl.value = item.reason || item.memo || '';
@@ -2032,7 +2060,7 @@ function renderExcelWatchlist() {
           </td>
           <td style="text-align:center; white-space:nowrap;">
             <button class="stock-edit-btn" onclick="handleOpenEditModal('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 종목 정보/목표가/이유 수정">✏️ 수정</button>
-            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 관심종목 삭제">🗑️</button>
+            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}', event)" title="'${stock.name}' 관심종목 삭제">🗑️</button>
           </td>
         </tr>
       `;
@@ -2049,10 +2077,53 @@ function renderExcelWatchlist() {
   });
 }
 
-window.handleDeleteStock = function(name, date) {
-  const dateInfo = date ? `(${date}) ` : '';
-  if (confirm(`'${name}' ${dateInfo}종목을 삭제하시겠습니까?`)) {
+window.handleDeleteStock = function(name, date, event) {
+  if (event) {
+    try {
+      event.preventDefault();
+      event.stopPropagation();
+    } catch {}
+  }
+
+  const modal = document.getElementById('deleteStockModal');
+  const titleEl = document.getElementById('delModalStockTitle');
+  const descEl = document.getElementById('delModalStockDesc');
+  const btnConfirm = document.getElementById('btnConfirmDelete');
+  const btnCancel = document.getElementById('btnCancelDelete');
+
+  if (!modal || !btnConfirm) {
+    if (confirm(`'${name}' 종목을 정말 삭제하시겠습니까?`)) {
+      deleteStockFromStorage(name, date);
+    }
+    return;
+  }
+
+  const dateInfo = date ? `[${date}] ` : '';
+  if (titleEl) titleEl.innerText = `'${name}' 관심종목 삭제`;
+  if (descEl) {
+    descEl.innerHTML = `
+      ${dateInfo}등록된 <b>'${name}'</b> 종목을 관심종목 목록에서 정말 삭제하시겠습니까?<br>
+      <span style="font-size:0.8rem; color:#94a3b8; display:inline-block; margin-top:6px;">(삭제 후에도 필요 시 언제든 다시 추가하실 수 있습니다.)</span>
+    `;
+  }
+
+  modal.classList.remove('hidden');
+
+  const cleanup = () => {
+    modal.classList.add('hidden');
+    btnConfirm.onclick = null;
+    if (btnCancel) btnCancel.onclick = null;
+  };
+
+  btnConfirm.onclick = () => {
+    cleanup();
     deleteStockFromStorage(name, date);
+  };
+
+  if (btnCancel) {
+    btnCancel.onclick = () => {
+      cleanup();
+    };
   }
 };
 

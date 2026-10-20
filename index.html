@@ -214,8 +214,16 @@
         <label class="input-label">종목명</label>
         <input type="text" id="addStockName" placeholder="예: SK하이닉스, 산일전기">
         
-        <label class="input-label" style="margin-top:10px;">종목코드 (선택)</label>
-        <input type="text" id="addStockCode" placeholder="예: 000660 (미입력시 자동 검색)">
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <div style="flex:1;">
+            <label class="input-label">종목코드 (선택)</label>
+            <input type="text" id="addStockCode" placeholder="예: 000660 (자동검색)">
+          </div>
+          <div style="flex:1;">
+            <label class="input-label">현재가 (선택, 원)</label>
+            <input type="text" id="addStockPrice" placeholder="예: 180,000원">
+          </div>
+        </div>
 
         <label class="input-label" style="margin-top:10px;">테마 / 섹터 (선택)</label>
         <input type="text" id="addStockTheme" placeholder="예: HBM, 변압기, 전력망">
@@ -350,7 +358,24 @@
     </div>
   </div>
 
-  <!-- 종목 정보 수정 모달 (v24) -->
+  <!-- 종목 삭제 확인 커스텀 모달 (v26 - 브라우저 confirm 무반응 원천 해결) -->
+  <div id="deleteStockModal" class="modal hidden">
+    <div class="dup-modal-content" style="max-width:390px; text-align:center;">
+      <div class="dup-title" style="justify-content:center; color:#ef4444; font-size:1.15rem;">
+        <span>🗑️</span>
+        <span id="delModalStockTitle">관심종목 삭제</span>
+      </div>
+      <div class="dup-desc" id="delModalStockDesc" style="margin:16px 0; font-size:0.92rem; line-height:1.55; color:#cbd5e1;">
+        선택하신 종목을 관심종목 목록에서 삭제하시겠습니까?
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button id="btnCancelDelete" class="btn-sub" style="flex:1; padding:10px; font-weight:700;">취소</button>
+        <button id="btnConfirmDelete" class="btn-primary" style="flex:1; padding:10px; font-weight:800; background:#ef4444; border-color:#dc2626;">🗑️ 정말 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 종목 정보 수정 모달 (v26) -->
   <div id="editStockModal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
@@ -364,8 +389,16 @@
         <label class="input-label">종목명</label>
         <input type="text" id="editStockName" placeholder="예: 펌텍코리아">
         
-        <label class="input-label" style="margin-top:10px;">종목코드 (6자리 공식 코드)</label>
-        <input type="text" id="editStockCode" placeholder="예: 251970 (미입력 시 종목명으로 자동 매핑)">
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <div style="flex:1;">
+            <label class="input-label">종목코드 (6자리)</label>
+            <input type="text" id="editStockCode" placeholder="예: 251970">
+          </div>
+          <div style="flex:1;">
+            <label class="input-label">현재가 (원)</label>
+            <input type="text" id="editStockPrice" placeholder="예: 68,300원">
+          </div>
+        </div>
 
         <div style="display:flex; gap:8px; margin-top:10px;">
           <div style="flex:1;">
@@ -410,9 +443,9 @@
 
   <!-- 엑셀(.xlsx, .xls) 파서 (SheetJS) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v25) -->
-  <script src="stock_master.js?v=25"></script>
+  <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v26) -->
+  <script src="stock_master.js?v=26"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>
