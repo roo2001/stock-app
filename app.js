@@ -50,7 +50,10 @@ const MASTER_STOCK_INFO = {
   '오킨스전자': { theme: 'HBM/반도체', code: '080580', sector: '반도체', price: 27000, change: -400, rate: -1.46, volume: 450000, tradeValue: 122, foreign: '-17.3만', inst: '+6.7만', reason: 'HBM 마그네틱 소켓 글로벌 메모리 3사 모두 공급 모멘텀' },
   '삼아알미늄': { theme: '2차전지/ESS/알루미늄박', code: '006110', sector: '비철금속', price: 82750, change: 650, rate: 0.79, volume: 176000, tradeValue: 147, foreign: '-5.2만', inst: '+9.3만', reason: 'LG에너지솔루션 ESS용 양극박(알루미늄박) 핵심 공급 업체 부각' },
   'TCC스틸': { theme: '2차전지/원통형배터리', code: '002710', sector: '철강금속', price: 13690, change: -990, rate: -6.74, volume: 165000, tradeValue: 23, foreign: '+13.5만', inst: '+138', reason: 'LG에너지솔루션에 원통형 배터리용 니켈도금강판 독점적 공급' },
-  'SFA반도체': { theme: '반도체 패키징/서버DDR5', code: '036540', sector: '반도체', price: 9010, change: -80, rate: -0.88, volume: 1180000, tradeValue: 104, foreign: '+6.5만', inst: '-19.4만', reason: '저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입' }
+  'SFA반도체': { theme: '반도체 패키징/서버DDR5', code: '036540', sector: '반도체', price: 9010, change: -80, rate: -0.88, volume: 1180000, tradeValue: 104, foreign: '+6.5만', inst: '-19.4만', reason: '저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입', open: 9040, high: 9080, low: 8650 },
+  '코아시아': { theme: '삼성 파운드리 DSP/디자인하우스', code: '045970', sector: '반도체', price: 3575, change: -80, rate: -2.19, volume: 12800, tradeValue: 1, foreign: '+8.9천', inst: '0', reason: '삼성 SAFE 공식 파트너로서 글로벌 빅테크 및 자동차/AI 반도체 커스텀 칩 설계 용역 수혜', open: 3660, high: 3710, low: 3575 },
+  '에이디테크놀로지': { theme: '삼성 파운드리 DSP/디자인하우스', code: '200710', sector: '반도체', price: 20600, change: -900, rate: -4.19, volume: 55000, tradeValue: 11, foreign: '+1.8만', inst: '-108', reason: '삼성전자 파운드리 핵심 디자인솔루션 파트너로서 첨단 공정 ASIC 수주 확대 모멘텀', open: 21300, high: 21550, low: 20050 },
+  '가온칩스': { theme: '삼성 파운드리 DSP/디자인하우스', code: '399720', sector: '반도체', price: 37250, change: -1350, rate: -3.50, volume: 17000, tradeValue: 6, foreign: '+6.2천', inst: '+1.8천', reason: '삼성 파운드리 최우수 공식 파트너사(DSP)로 빅테크 자체 칩 설계 수주 증가에 따른 직접적인 낙수효과 기대', open: 38250, high: 38600, low: 36550 }
 };
 
 // 업종 자동 유추 함수 (마스터나 AI 응답에 업종이 없을 때 '일반' 대신 정확한 산업군 추론)
@@ -595,24 +598,30 @@ function initModals() {
     const todayStr = new Date().toISOString().split('T')[0];
     const master = MASTER_STOCK_INFO[name] || {};
 
-    addStockToStorage({
+    const newItem = {
       theme: theme || master.theme || '직접등록',
       name,
       code: code || master.code || '000000',
       sector: master.sector || guessSector(theme, name),
-      price: master.price || 50000,
+      price: master.price || 0,
       change: master.change || 0,
       rate: master.rate !== undefined ? master.rate : 0.0,
-      volume: master.volume || 100000,
-      tradeValue: master.tradeValue || 50,
+      volume: master.volume || 0,
+      tradeValue: master.tradeValue || 0,
+      open: master.open || 0,
+      high: master.high || 0,
+      low: master.low || 0,
       foreign: master.foreign || '-',
       foreignLive: master.foreignLive || null,
       inst: master.inst || '-',
+      investorDate: master.investorDate || '',
       dayCandle: { left: 40, width: 30, up: (master.rate || 0) >= 0 },
       date: todayStr,
       reason: reason || memo || master.reason || '직접 등록 종목',
       memo: memo || ''
-    });
+    };
+    addStockToStorage(newItem);
+    requestSingleStockLive(newItem);
     addModal.classList.add('hidden');
     renderExcelWatchlist();
   });
@@ -887,15 +896,77 @@ function renderAnalysisResult(res) {
   resultCard.classList.remove('hidden');
 }
 
-// 개별 종목 추가 (추천 이유 & 지능형 업종/시세 포함)
+// 비동기 단일 종목 KIS 실시간 시세 요청 헬퍼
+async function requestSingleStockLive(item) {
+  if (!item || !item.code || item.code === '000000') return;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+    const resp = await fetch('/api/stocks/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: item.code }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const live = await resp.json();
+      if (live && live.price > 0) {
+        item.price = live.price;
+        item.change = live.change;
+        item.rate = live.rate;
+        item.volume = live.volume;
+        item.tradeValue = live.tradeValue;
+        item.open = live.open;
+        item.high = live.high;
+        item.low = live.low;
+        item.dayCandle = live.dayCandle;
+        if (live.foreign) item.foreign = live.foreign;
+        if (live.foreignLive) item.foreignLive = live.foreignLive;
+        if (live.inst) item.inst = live.inst;
+        if (live.investorDate) item.investorDate = live.investorDate;
+
+        const currentList = getWatchlist();
+        const idx = currentList.findIndex(s => s.code === item.code && s.date === item.date);
+        if (idx !== -1) {
+          currentList[idx] = item;
+          saveWatchlist(currentList);
+        }
+      }
+    }
+  } catch (e) {
+    // 로컬 브릿지 오프라인 시 조용히 유지
+  }
+}
+
+// 개별 종목 추가 (더미 50000원 영구 삭제 및 정밀 시세 연동)
 function addSingleDetectedStock(stock, dateStr) {
   const officialCode = getOfficialStockCode(stock.name, stock.code);
   const officialName = getOfficialStockName(officialCode, stock.name);
   const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
   const sector = stock.sector || master.sector || guessSector(stock.theme, officialName);
-  const price = (master.price && master.price !== 50000) ? master.price : (Number(stock.current_price) || 50000);
-  const rate = master.rate !== undefined ? master.rate : 0.0;
-  const isUp = rate >= 0;
+
+  let price = 0;
+  let change = 0;
+  let rate = 0.0;
+  let oprc = 0;
+  let hgpr = 0;
+  let lwpr = 0;
+
+  if (master.price) {
+    price = master.price;
+    change = master.change || 0;
+    rate = master.rate !== undefined ? master.rate : 0.0;
+    oprc = master.open || 0;
+    hgpr = master.high || 0;
+    lwpr = master.low || 0;
+  } else if (stock.current_price && Number(stock.current_price) > 0) {
+    price = Number(stock.current_price);
+    rate = Number(stock.change_rate) || 0.0;
+    change = Math.round(price * (rate / 100));
+  }
+
+  const isUp = oprc > 0 ? (price >= oprc) : (rate >= 0);
 
   const item = {
     theme: stock.theme || master.theme || '쇼츠추천',
@@ -903,19 +974,24 @@ function addSingleDetectedStock(stock, dateStr) {
     code: officialCode,
     sector: sector,
     price: price,
-    change: master.change || Math.round(price * (rate / 100)),
+    change: change,
     rate: rate,
-    volume: master.volume || 120000,
-    tradeValue: master.tradeValue || Number(stock.trade_value) || 60,
+    volume: master.volume || (price ? 120000 : 0),
+    tradeValue: master.tradeValue || Number(stock.trade_value) || 0,
+    open: oprc,
+    high: hgpr,
+    low: lwpr,
     foreign: master.foreign || '-',
     foreignLive: master.foreignLive || null,
     inst: master.inst || '-',
+    investorDate: master.investorDate || '',
     dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
     date: dateStr || new Date().toISOString().split('T')[0],
     reason: stock.reason || master.reason || '영상 추천 종목'
   };
   addStockToStorage(item);
   renderExcelWatchlist();
+  requestSingleStockLive(item);
   alert(`✅ '${item.name}' (${item.code}) 종목이 관심종목 테이블에 추가되었습니다!`);
 }
 
@@ -931,27 +1007,52 @@ function handleAddAllDetectedStocks() {
     const officialName = getOfficialStockName(officialCode, stock.name);
     const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
     const sector = stock.sector || master.sector || guessSector(stock.theme, officialName);
-    const price = (master.price && master.price !== 50000) ? master.price : (Number(stock.current_price) || 50000);
-    const rate = master.rate !== undefined ? master.rate : 0.0;
-    const isUp = rate >= 0;
 
-    addStockToStorage({
+    let price = 0;
+    let change = 0;
+    let rate = 0.0;
+    let oprc = 0;
+    let hgpr = 0;
+    let lwpr = 0;
+
+    if (master.price) {
+      price = master.price;
+      change = master.change || 0;
+      rate = master.rate !== undefined ? master.rate : 0.0;
+      oprc = master.open || 0;
+      hgpr = master.high || 0;
+      lwpr = master.low || 0;
+    } else if (stock.current_price && Number(stock.current_price) > 0) {
+      price = Number(stock.current_price);
+      rate = Number(stock.change_rate) || 0.0;
+      change = Math.round(price * (rate / 100));
+    }
+
+    const isUp = oprc > 0 ? (price >= oprc) : (rate >= 0);
+
+    const item = {
       theme: stock.theme || master.theme || '쇼츠추천',
       name: officialName,
       code: officialCode,
       sector: sector,
       price: price,
-      change: master.change || Math.round(price * (rate / 100)),
+      change: change,
       rate: rate,
-      volume: master.volume || 120000,
-      tradeValue: master.tradeValue || Number(stock.trade_value) || 60,
+      volume: master.volume || (price ? 120000 : 0),
+      tradeValue: master.tradeValue || Number(stock.trade_value) || 0,
+      open: oprc,
+      high: hgpr,
+      low: lwpr,
       foreign: master.foreign || '-',
       foreignLive: master.foreignLive || null,
       inst: master.inst || '-',
+      investorDate: master.investorDate || '',
       dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
       date: dateStr,
       reason: stock.reason || master.reason || '영상 추천 종목'
-    });
+    };
+    addStockToStorage(item);
+    requestSingleStockLive(item);
   });
   renderExcelWatchlist();
   alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 모두 공식 종목코드로 관심종목 테이블에 등록되었습니다!`);
@@ -1020,6 +1121,34 @@ async function initWatchlist() {
       if (item.name === '효성중공업' && item.price < 1000000) item.price = master.price;
       if (item.name === 'SK하이닉스' && item.price < 500000) item.price = master.price;
       if (item.name === 'HD현대일렉트릭' && item.price < 400000) item.price = master.price;
+      if (item.name === '코아시아' && item.price > 10000) {
+        item.price = master.price;
+        item.change = master.change;
+        item.rate = master.rate;
+        item.tradeValue = master.tradeValue;
+        item.foreign = master.foreign;
+        item.inst = master.inst;
+      }
+      if (item.name === '에이디테크놀로지' && item.price > 30000) {
+        item.price = master.price;
+        item.change = master.change;
+        item.rate = master.rate;
+        item.tradeValue = master.tradeValue;
+        item.foreign = master.foreign;
+        item.inst = master.inst;
+      }
+      if (item.name === '가온칩스' && item.price > 45000) {
+        item.price = master.price;
+        item.change = master.change;
+        item.rate = master.rate;
+        item.tradeValue = master.tradeValue;
+        item.foreign = master.foreign;
+        item.inst = master.inst;
+      }
+      if (master.open) item.open = master.open;
+      if (master.high) item.high = master.high;
+      if (master.low) item.low = master.low;
+
       if (!item.price || (item.price >= 48000 && item.price <= 52000 && master.price !== 50000)) {
         item.price = master.price;
         item.change = master.change;
@@ -1038,11 +1167,15 @@ async function initWatchlist() {
       }
     }
 
-    // 당일봉 음봉/양봉 정합성 강제 동기화
-    const isUp = (Number(item.rate) || 0) >= 0;
-    if (!item.dayCandle) {
-      item.dayCandle = { left: isUp ? 42 : 12, width: 38, up: isUp };
-    }
+    // 당일봉 HTS 정밀 동기화 (종가 >= 시가 이면 양봉, 종가 < 시가 이면 음봉)
+    const oprc = Number(item.open) || Number(item.price) || 0;
+    const clpr = Number(item.price) || 0;
+    const isUp = oprc > 0 ? (clpr >= oprc) : ((Number(item.rate) || 0) >= 0);
+    item.dayCandle = {
+      left: isUp ? 42 : 12,
+      width: 38,
+      up: isUp
+    };
   });
 
   if (list.length === 0) {
@@ -1238,7 +1371,7 @@ function renderExcelWatchlist() {
           <td class="${rateClass}">${rateSign}${Math.abs(stock.rate || 0).toFixed(2)}%</td>
           <td style="color:#cbd5e1; font-weight:700;">${stock.tradeValue || 0}억</td>
           <td style="text-align:center;">
-            ${renderHtsCandleSvg(stock.rate)}
+            ${renderHtsCandleSvg(stock)}
           </td>
           <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">
             <div>${stock.foreign || '-'}</div>
@@ -1276,46 +1409,68 @@ window.handleDeleteStock = function(name, date) {
 // ==========================================
 // 영웅문 HTS 스타일 'L일봉H' 가로형 미니 캔들 SVG 렌더러
 // ==========================================
-function renderHtsCandleSvg(rate = 0) {
-  const r = Number(rate) || 0;
-  const isUp = r >= 0;
-  const absRate = Math.abs(r);
+function renderHtsCandleSvg(stock = {}) {
+  let r = 0;
+  let oprc = 0;
+  let price = 0;
+  let hgpr = 0;
+  let lwpr = 0;
+
+  if (typeof stock === 'number') {
+    r = stock;
+  } else if (typeof stock === 'object' && stock !== null) {
+    r = Number(stock.rate) || 0;
+    price = Number(stock.price) || 0;
+    oprc = Number(stock.open) || 0;
+    hgpr = Number(stock.high) || 0;
+    lwpr = Number(stock.low) || 0;
+  }
+
+  // 진짜 양봉/음봉 판정: 시가가 있으면 종가 >= 시가, 없으면 등락률 >= 0
+  const isUp = (oprc > 0 && price > 0) ? (price >= oprc) : (r >= 0);
   const color = isUp ? '#ef4444' : '#3b82f6';
   const width = 56;
   const height = 14;
   const centerY = 7;
-
-  // 몸통 폭 (등락률 크기에 따라 6px ~ 36px 동적 가변)
-  let bodyW = Math.max(6, Math.min(36, Math.round(absRate * 3.2) + 6));
-  let bodyX = 0;
-  let wickX1 = 4;
-  let wickX2 = 52;
-
-  if (isUp) {
-    if (absRate >= 28) {
-      // 상한가/급등 장대양봉: 우측 고가 영역 꽉 찬 직사각형
-      bodyX = 14;
-      bodyW = 40;
-      wickX1 = 10;
-      wickX2 = 54;
-    } else {
-      // 일반 상승 양봉: 중심에서 우측(고가) 방향
-      bodyX = Math.min(width - bodyW - 4, 24 + Math.round(absRate * 1.5));
-      wickX1 = Math.max(4, bodyX - 14);
-      wickX2 = Math.min(54, bodyX + bodyW + 8);
-    }
-  } else {
-    // 하락 음봉: 중심에서 좌측(저가) 방향 (우리넷 등)
-    bodyX = Math.max(4, 26 - bodyW - Math.round(absRate * 1.5));
-    wickX1 = Math.max(4, bodyX - 4);
-    wickX2 = Math.min(54, bodyX + bodyW + 14);
-  }
-
   const bodyH = 8;
   const bodyY = centerY - (bodyH / 2);
 
+  let bodyX = 0;
+  let bodyW = 0;
+  let wickX1 = 4;
+  let wickX2 = 52;
+
+  // 실제 시가/고가/저가가 있는 경우: 증권사 HTS 공식 비율로 캔들 렌더링
+  if (hgpr > lwpr && lwpr > 0 && oprc > 0 && price > 0) {
+    const rng = hgpr - lwpr;
+    const cMin = Math.min(oprc, price);
+    const cMax = Math.max(oprc, price);
+    const trackW = width - 12; // 좌우 6px 여백
+    bodyX = Math.round(((cMin - lwpr) / rng) * trackW) + 6;
+    bodyW = Math.max(5, Math.round(((cMax - cMin) / rng) * trackW));
+    if (bodyX + bodyW > width - 4) bodyW = (width - 4) - bodyX;
+    wickX1 = 4;
+    wickX2 = width - 4;
+  } else {
+    // 시가/고가/저가가 미수신된 경우: 등락률 크기 기반 캔들
+    const absRate = Math.abs(r);
+    bodyW = Math.max(6, Math.min(36, Math.round(absRate * 3.2) + 6));
+    if (isUp) {
+      bodyX = Math.min(width - bodyW - 4, 24 + Math.round(absRate * 1.5));
+      wickX1 = Math.max(4, bodyX - 14);
+      wickX2 = Math.min(54, bodyX + bodyW + 8);
+    } else {
+      bodyX = Math.max(4, 26 - bodyW - Math.round(absRate * 1.5));
+      wickX1 = Math.max(4, bodyX - 4);
+      wickX2 = Math.min(54, bodyX + bodyW + 14);
+    }
+  }
+
+  const sign = r > 0 ? '+' : '';
+  const tooltip = `${isUp ? '상승 양봉' : '하락 음봉'} (${sign}${r.toFixed(2)}%)` + (oprc ? ` [시가:${oprc.toLocaleString()} 고:${hgpr.toLocaleString()} 저:${lwpr.toLocaleString()}]` : '');
+
   return `
-    <div class="hts-candle-wrapper" title="${isUp ? '상승 양봉' : '하락 음봉'} (${r > 0 ? '+' : ''}${r.toFixed(2)}%)">
+    <div class="hts-candle-wrapper" title="${tooltip}">
       <svg class="hts-candle-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
         <!-- L-H 배경 트랙선 -->
         <line x1="2" y1="${centerY}" x2="${width - 2}" y2="${centerY}" stroke="#334155" stroke-width="1" stroke-dasharray="2,2" opacity="0.35" />

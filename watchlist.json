@@ -1,5 +1,77 @@
 [
   {
+    "theme": "삼성 파운드리 DSP/디자인하우스",
+    "name": "코아시아",
+    "code": "045970",
+    "sector": "반도체",
+    "price": 3575,
+    "change": -80,
+    "rate": -2.19,
+    "volume": 12800,
+    "tradeValue": 1,
+    "foreign": "+8.9천",
+    "inst": "0",
+    "investorDate": "20261019",
+    "open": 3660,
+    "high": 3710,
+    "low": 3575,
+    "dayCandle": {
+      "left": 12,
+      "width": 38,
+      "up": false
+    },
+    "date": "2026-10-20",
+    "reason": "삼성 SAFE 공식 파트너로서 글로벌 빅테크 및 자동차/AI 반도체 커스텀 칩 설계 용역 수혜"
+  },
+  {
+    "theme": "삼성 파운드리 DSP/디자인하우스",
+    "name": "에이디테크놀로지",
+    "code": "200710",
+    "sector": "반도체",
+    "price": 20600,
+    "change": -900,
+    "rate": -4.19,
+    "volume": 55000,
+    "tradeValue": 11,
+    "foreign": "+1.8만",
+    "inst": "-108",
+    "investorDate": "20261019",
+    "open": 21300,
+    "high": 21550,
+    "low": 20050,
+    "dayCandle": {
+      "left": 12,
+      "width": 38,
+      "up": false
+    },
+    "date": "2026-10-20",
+    "reason": "삼성전자 파운드리 핵심 디자인솔루션 파트너로서 첨단 공정 ASIC 수주 확대 모멘텀"
+  },
+  {
+    "theme": "삼성 파운드리 DSP/디자인하우스",
+    "name": "가온칩스",
+    "code": "399720",
+    "sector": "반도체",
+    "price": 37250,
+    "change": -1350,
+    "rate": -3.5,
+    "volume": 17000,
+    "tradeValue": 6,
+    "foreign": "+6.2천",
+    "inst": "+1.8천",
+    "investorDate": "20261019",
+    "open": 38250,
+    "high": 38600,
+    "low": 36550,
+    "dayCandle": {
+      "left": 12,
+      "width": 38,
+      "up": false
+    },
+    "date": "2026-10-20",
+    "reason": "삼성 파운드리 최우수 공식 파트너사(DSP)로 빅테크 자체 칩 설계 수주 증가에 따른 직접적인 낙수효과 기대"
+  },
+  {
     "theme": "반도체 패키징/서버DDR5",
     "name": "SFA반도체",
     "code": "036540",
