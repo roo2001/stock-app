@@ -1075,9 +1075,21 @@ textarea#firebaseConfigInput:focus {
   -webkit-overflow-scrolling: touch;
 }
 
+.excel-scroll-area::-webkit-scrollbar {
+  height: 8px;
+}
+.excel-scroll-area::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.excel-scroll-area::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 4px;
+}
+
 .excel-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.84rem;
   min-width: 980px;
 }
@@ -1098,17 +1110,17 @@ textarea#firebaseConfigInput:focus {
   text-align: left;
 }
 
-/* 관리 열 우측 고정 (Sticky) */
+/* 관리 열 우측 고정 (Sticky) - separate 모드에서 완벽 구동 */
 .excel-table th:last-child,
 .excel-table td:last-child {
   position: sticky;
   right: 0;
   background-color: #0b1329;
   z-index: 5;
-  width: 64px;
-  min-width: 64px;
+  width: 72px;
+  min-width: 72px;
   text-align: center !important;
-  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.4);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.45);
 }
 
 .excel-table td {
