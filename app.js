@@ -104,6 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSync = document.getElementById('btnSyncDevices');
   if (btnSync) btnSync.addEventListener('click', handleDeviceSync);
 
+  // 클라우드 복구 버튼 (깃허브 서버 원본 관심종목 안전 복구 및 병합)
+  const btnRestore = document.getElementById('btnRestoreCloud');
+  if (btnRestore) btnRestore.addEventListener('click', handleCloudRestore);
+
   // CSV 내보내기 버튼 (엑셀/구글시트 호환)
   const btnCsv = document.getElementById('btnExportCsv');
   if (btnCsv) btnCsv.addEventListener('click', exportToCsv);
@@ -191,6 +195,48 @@ function handleDeviceSync() {
   }).catch(() => {
     prompt('아래 링크를 복사하여 카카오톡 나에게 보내기로 전송하세요:', syncUrl);
   });
+}
+
+// [☁️ 클라우드 복구] 버튼 클릭: 깃허브 서버 원본(watchlist.json)을 가져와 현재 종목과 안전 병합
+async function handleCloudRestore() {
+  const confirmRestore = confirm('☁️ [클라우드 복구]\n\n서버의 마스터 관심종목 데이터(13개 종목)를 불러와 현재 내 기기의 목록과 안전하게 합치시겠습니까?\n(기존에 등록하신 종목은 삭제되지 않고 안전하게 보존됩니다.)');
+  if (!confirmRestore) return;
+
+  try {
+    const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+    if (!resp.ok) {
+      throw new Error(`서버 응답 오류 (HTTP ${resp.status})`);
+    }
+    const cloudList = await resp.json();
+    if (!Array.isArray(cloudList) || cloudList.length === 0) {
+      alert('클라우드 서버에 등록된 종목 데이터가 없습니다.');
+      return;
+    }
+
+    const currentList = getWatchlist();
+    const itemMap = new Map();
+
+    // 1. 클라우드 마스터 원본 종목 등록
+    cloudList.forEach(item => {
+      const key = `${item.date || ''}_${item.name}`;
+      itemMap.set(key, item);
+    });
+
+    // 2. 현재 내 기기에 추가로 분석/등록해둔 종목도 잃어버리지 않게 안전 보존
+    currentList.forEach(item => {
+      const key = `${item.date || ''}_${item.name}`;
+      if (!itemMap.has(key)) {
+        itemMap.set(key, item);
+      }
+    });
+
+    const merged = Array.from(itemMap.values());
+    saveWatchlist(merged);
+    alert(`🎉 [클라우드 복구 완료!]\n\n서버의 마스터 종목(${cloudList.length}개)이 성공적으로 반영되었습니다.\n(현재 내 기기 총 관심종목: ${merged.length}개)`);
+  } catch (err) {
+    console.error('클라우드 복구 실패:', err);
+    alert(`클라우드 복구 중 오류가 발생했습니다: ${err.message}`);
+  }
 }
 
 // ==========================================
