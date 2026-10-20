@@ -3,27 +3,54 @@
 const STORAGE_KEY_API = 'stock_shorts_gemini_api_key';
 const STORAGE_KEY_WATCHLIST = 'stock_shorts_watchlist_items';
 
-// 종목 마스터 정밀 시세 및 추천 이유 데이터 (실제 엑셀 관심종목_실시간.xlsx 매핑)
+// KRX 공식 3,944개 상장 종목 헬퍼 함수
+function getOfficialStockCode(name = '', fallbackCode = '000000') {
+  const cleanName = String(name).trim();
+  if (window.KRX_STOCK_MAP && window.KRX_STOCK_MAP[cleanName]) {
+    return window.KRX_STOCK_MAP[cleanName];
+  }
+  // 흔한 오타 및 별칭 사전 체크
+  const aliasMap = {
+    '빗샘전자': '072950',
+    '빛샘전자': '072950',
+    '한국전력기술': '052690',
+    '한전기술': '052690',
+    '삼전': '005930',
+    '삼성전자': '005930',
+    '하닉': '000660',
+    'SK하이닉스': '000660',
+    '현대차': '005380',
+    '기아차': '000270'
+  };
+  if (aliasMap[cleanName]) return aliasMap[cleanName];
+  if (fallbackCode && fallbackCode !== '000000') return String(fallbackCode).padStart(6, '0');
+  return '000000';
+}
+
+function getOfficialStockName(code = '', fallbackName = '') {
+  const cleanCode = String(code).trim().padStart(6, '0');
+  if (window.KRX_CODE_MAP && window.KRX_CODE_MAP[cleanCode]) {
+    return window.KRX_CODE_MAP[cleanCode];
+  }
+  return fallbackName || cleanCode;
+}
+
+// 종목 마스터 정밀 시세 및 추천 이유 데이터 (KIS 실전 API 실측 연동)
 const MASTER_STOCK_INFO = {
-  '산일전기': { theme: '변압기', code: '062040', sector: '전기제어장치', price: 188800, change: 7400, rate: 4.06, volume: 452100, tradeValue: 851, foreign: '+1.2만', inst: '+3.5천', reason: '북미 AI 데이터센터향 특수변압기 수주 지속 확대 및 3분기 호실적 기반 주가 전고점 돌파 시도' },
-  '제룡전기': { theme: '중소형 배전변압기', code: '033100', sector: '전기장비', price: 64500, change: 2100, rate: 3.36, volume: 820000, tradeValue: 480, foreign: '+2.4만', inst: '+1.8천', reason: '미국 배전변압기 쇼티지 지속에 따른 높은 영업이익률 유지 및 20일 이동평균선 안착 후 기술적 반등 흐름' },
-  '효성중공업': { theme: '전력기기/변압기', code: '298040', sector: '전기장비', price: 418000, change: 16500, rate: 4.11, volume: 220000, tradeValue: 920, foreign: '+3.2만', inst: '+8.5천', reason: '유럽 및 북미 법인 흑자 폭 확대와 미국 현지 증설 모멘텀으로 전력 인프라 대장주로서의 밸류에이션 리레이팅 기대' },
-  'HD현대일렉트릭': { theme: '전력기기/변압기', code: '267260', sector: '전기장비', price: 315000, change: 15500, rate: 5.18, volume: 460000, tradeValue: 1450, foreign: '+6.5만', inst: '+2.1만', reason: '글로벌 전력망 교체 주기 도래에 따른 초고압 변압기 수주 잔고 급증 및 견조한 기관·외인 동반 순매수세' },
-  'LS ELECTRIC': { theme: '원전전력', code: '010120', sector: '전기제어장치', price: 166000, change: 7400, rate: 4.67, volume: 720500, tradeValue: 1200, foreign: '+2.8만', inst: '+1.1만', reason: '북미 전력 인프라 대규모 증설 및 초고압 변압기 수혜' },
-  '우리넷': { theme: '양자암호', code: '115440', sector: '통신장비', price: 9760, change: -50, rate: -0.51, volume: 124000, tradeValue: 12, foreign: '-500', inst: '-3000', reason: '국가 양자암호 시험망 구축 및 5G 모듈 국산화' },
-  'SK하이닉스': { theme: 'HBM/AI', code: '000660', sector: '반도체', price: 191000, change: 4200, rate: 2.25, volume: 2150000, tradeValue: 4100, foreign: '+18만', inst: '+9.4만', reason: '5세대 HBM3E 엔비디아 독점 공급 및 분기 최대 실적 달성' },
-  '삼성전자': { theme: '반도체', code: '005930', sector: '반도체', price: 73500, change: 1000, rate: 1.38, volume: 8500000, tradeValue: 6200, foreign: '+45만', inst: '+12만', reason: 'HBM 5세대 공급 승인 기대감 및 저평가 밸류에이션 매력' },
-  '코위버': { theme: '5G통신', code: '056360', sector: '통신장비', price: 5570, change: 110, rate: 2.01, volume: 89000, tradeValue: 5, foreign: '+1.1천', inst: '0', reason: '5G 백본망 광전송장비 국산화 및 공공 인프라 수주' },
-  '한국전력기술': { theme: '원자력', code: '052690', sector: '엔지니어링', price: 74200, change: 1800, rate: 2.49, volume: 310000, tradeValue: 230, foreign: '+5.4천', inst: '+8.2천', reason: '체코 원전 수주 본계약 체결 기대감 및 SMR 설계 역량' },
-  '일진전기': { theme: '초고압변압기', code: '103590', sector: '전기장비', price: 27800, change: 1100, rate: 4.12, volume: 1250000, tradeValue: 350, foreign: '+1.5만', inst: '+6.2천', reason: '홍성 공장 초고압 변압기 증설 가동 및 북미 수출 본격화' },
-  '대원전선': { theme: '전선/전력망', code: '006340', sector: '전기장비', price: 3850, change: 120, rate: 3.22, volume: 5400000, tradeValue: 210, foreign: '+8.4만', inst: '+1.2천', reason: '미국 주요 전력청 납품 이력 및 초고압 케이블 수출 확대' },
-  '대한전선': { theme: '해저케이블', code: '001440', sector: '전기장비', price: 14200, change: 350, rate: 2.53, volume: 3100000, tradeValue: 440, foreign: '+12만', inst: '+3.5만', reason: '당진 해저케이블 1공장 1단계 준공 및 해상풍력 수주 가시화' },
-  '인텍플러스': { theme: '반도체/CXL', code: '064290', sector: '반도체장비', price: 28500, change: 1200, rate: 4.39, volume: 850000, tradeValue: 240, foreign: '+1.8만', inst: '+3.2만', reason: '글로벌 빅테크향 첨단 패키징 검사장비 독점 공급 및 CXL 테마 모멘텀' },
-  '오킨스전자': { theme: 'CXL소켓', code: '080580', sector: '반도체부품', price: 8450, change: 350, rate: 4.32, volume: 1200000, tradeValue: 100, foreign: '+5.2천', inst: '+1.1만', reason: '차세대 CXL 메모리 인터페이스 테스트 소켓 국산화 및 공급 가시화' },
-  '삼아알미늄': { theme: '2차전지양극박', code: '006110', sector: '비철금속', price: 36200, change: 1100, rate: 3.13, volume: 420000, tradeValue: 150, foreign: '+2.1만', inst: '+4.5천', reason: '글로벌 배터리 제조사향 하이니켈 양극박 장기 공급 계약 수혜' },
-  'TCC스틸': { theme: '원통형배터리캔', code: '002710', sector: '철강금속', price: 38400, change: 1400, rate: 3.78, volume: 780000, tradeValue: 300, foreign: '+4.5만', inst: '+1.8만', reason: '4680 원통형 배터리용 니켈도금강판 전용 라인 증설 및 독점적 시장 지위' },
-  'SFA반도체': { theme: '반도체 패키징/서버DDR5', code: '036540', sector: '반도체', price: 49125, change: 1500, rate: 3.09, volume: 1250000, tradeValue: 114, foreign: '+1.5만', inst: '+8천', reason: '저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입' },
-  '빗샘전자': { theme: '광통신/AI데이터센터', code: '072950', sector: '통신장비', price: 50546, change: 1500, rate: 3.09, volume: 1200000, tradeValue: 111, foreign: '+1.5만', inst: '+8천', reason: 'AI 데이터센터 확산에 따른 광통신 관련주 부각' }
+  '산일전기': { theme: '변압기/전력망', code: '062040', sector: '전기제어장치', price: 177700, change: -11300, rate: -5.98, volume: 173000, tradeValue: 310, foreign: '+6.0만', inst: '-1.7만', reason: '북미 AI 데이터센터향 특수변압기 수주 지속 확대 및 3분기 호실적 기반 주가 전고점 돌파 시도' },
+  '제룡전기': { theme: '중소형 배전변압기', code: '033100', sector: '전기장비', price: 41100, change: -1750, rate: -4.08, volume: 220000, tradeValue: 92, foreign: '+2.7만', inst: '-6.6천', reason: '미국 배전변압기 쇼티지 지속에 따른 높은 영업이익률 유지 및 20일 이동평균선 안착 후 기술적 반등 흐름' },
+  '효성중공업': { theme: '전력기기/변압기', code: '298040', sector: '전기장비', price: 1877000, change: -59000, rate: -3.05, volume: 48000, tradeValue: 910, foreign: '-6.0천', inst: '+2.9천', reason: '유럽 및 북미 법인 흑자 폭 확대와 미국 현지 증설 모멘텀으로 전력 인프라 대장주로서의 밸류에이션 리레이팅 기대' },
+  'HD현대일렉트릭': { theme: '전력기기/변압기', code: '267260', sector: '전기장비', price: 494500, change: -30500, rate: -5.81, volume: 89000, tradeValue: 445, foreign: '-9.2천', inst: '+9.7천', reason: '글로벌 전력망 교체 주기 도래에 따른 초고압 변압기 수주 잔고 급증 및 견조한 기관·외인 동반 순매수세' },
+  'LS ELECTRIC': { theme: '원전전력', code: '010120', sector: '전기제어장치', price: 156100, change: -8500, rate: -5.16, volume: 180000, tradeValue: 285, foreign: '+8.1만', inst: '-2.7만', reason: '북미 전력 인프라 대규모 증설 및 초고압 변압기 수혜' },
+  '우리넷': { theme: '양자암호', code: '115440', sector: '통신장비', price: 9440, change: -290, rate: -2.98, volume: 38000, tradeValue: 4, foreign: '+697', inst: '-325', reason: '국가 양자암호 시험망 구축 및 5G 모듈 국산화' },
+  'SK하이닉스': { theme: 'HBM/AI', code: '000660', sector: '반도체', price: 1230000, change: -47000, rate: -3.68, volume: 740000, tradeValue: 9150, foreign: '-14.1만', foreignLive: '+6.1천', inst: '-19.8만', reason: '5세대 HBM3E 엔비디아 독점 공급 및 분기 최대 실적 달성' },
+  '삼성전자': { theme: '반도체', code: '005930', sector: '반도체', price: 214500, change: -3500, rate: -1.61, volume: 5350000, tradeValue: 11500, foreign: '+124만', foreignLive: '+1.2만', inst: '-4.3만', reason: 'HBM 5세대 공급 승인 기대감 및 글로벌 파운드리 턴어라운드' },
+  '빛샘전자': { theme: '광통신/AI데이터센터', code: '072950', sector: '통신장비', price: 14190, change: -1030, rate: -6.77, volume: 89000, tradeValue: 13, foreign: '+3.7만', inst: '+3.8천', reason: 'AI 데이터센터 확산에 따른 광통신 핵심 부품 수요 부각' },
+  '인텍플러스': { theme: '반도체 검사장비', code: '064290', sector: '반도체', price: 57200, change: -2100, rate: -3.54, volume: 310000, tradeValue: 180, foreign: '-2.7만', inst: '-2.3만', reason: '반도체 슈퍼사이클 도래 및 후공정 검사 수요 증가 기대감' },
+  '오킨스전자': { theme: 'HBM/반도체', code: '080580', sector: '반도체', price: 27000, change: -400, rate: -1.46, volume: 450000, tradeValue: 122, foreign: '-17.3만', inst: '+6.7만', reason: 'HBM 마그네틱 소켓 글로벌 메모리 3사 모두 공급 모멘텀' },
+  '삼아알미늄': { theme: '2차전지/ESS/알루미늄박', code: '006110', sector: '비철금속', price: 82750, change: 650, rate: 0.79, volume: 176000, tradeValue: 147, foreign: '-5.2만', inst: '+9.3만', reason: 'LG에너지솔루션 ESS용 양극박(알루미늄박) 핵심 공급 업체 부각' },
+  'TCC스틸': { theme: '2차전지/원통형배터리', code: '002710', sector: '철강금속', price: 13690, change: -990, rate: -6.74, volume: 165000, tradeValue: 23, foreign: '+13.5만', inst: '+138', reason: 'LG에너지솔루션에 원통형 배터리용 니켈도금강판 독점적 공급' },
+  'SFA반도체': { theme: '반도체 패키징/서버DDR5', code: '036540', sector: '반도체', price: 9010, change: -80, rate: -0.88, volume: 1180000, tradeValue: 104, foreign: '+6.5만', inst: '-19.4만', reason: '저마진 모듈 및 레거시 탈피, 데이터센터용 SSD 및 서버용 DDR5 물량 본격 투입' }
 };
 
 // 업종 자동 유추 함수 (마스터나 AI 응답에 업종이 없을 때 '일반' 대신 정확한 산업군 추론)
@@ -548,8 +575,8 @@ function initModals() {
   }
 
   document.getElementById('btnConfirmAddStock').addEventListener('click', () => {
-    const name = document.getElementById('addStockName').value.trim();
-    const code = document.getElementById('addStockCode').value.trim();
+    let name = document.getElementById('addStockName').value.trim();
+    let code = document.getElementById('addStockCode').value.trim();
     const theme = document.getElementById('addStockTheme')?.value.trim();
     const reason = document.getElementById('addStockReason')?.value.trim();
     const memo = document.getElementById('addStockMemo').value.trim();
@@ -559,6 +586,12 @@ function initModals() {
       return;
     }
 
+    // 1. KRX 공식 코드 및 종목명 자동 매핑
+    const officialCode = getOfficialStockCode(name, code);
+    const officialName = getOfficialStockName(officialCode, name);
+    name = officialName;
+    code = officialCode;
+
     const todayStr = new Date().toISOString().split('T')[0];
     const master = MASTER_STOCK_INFO[name] || {};
 
@@ -566,14 +599,15 @@ function initModals() {
       theme: theme || master.theme || '직접등록',
       name,
       code: code || master.code || '000000',
-      sector: master.sector || '일반',
+      sector: master.sector || guessSector(theme, name),
       price: master.price || 50000,
-      change: master.change || 1500,
-      rate: master.rate || 3.09,
+      change: master.change || 0,
+      rate: master.rate !== undefined ? master.rate : 0.0,
       volume: master.volume || 100000,
       tradeValue: master.tradeValue || 50,
-      foreign: master.foreign || '+1.5만',
-      inst: master.inst || '+8천',
+      foreign: master.foreign || '-',
+      foreignLive: master.foreignLive || null,
+      inst: master.inst || '-',
       dayCandle: { left: 40, width: 30, up: (master.rate || 0) >= 0 },
       date: todayStr,
       reason: reason || memo || master.reason || '직접 등록 종목',
@@ -855,31 +889,34 @@ function renderAnalysisResult(res) {
 
 // 개별 종목 추가 (추천 이유 & 지능형 업종/시세 포함)
 function addSingleDetectedStock(stock, dateStr) {
-  const master = MASTER_STOCK_INFO[stock.name] || {};
-  const sector = stock.sector || master.sector || guessSector(stock.theme, stock.name);
+  const officialCode = getOfficialStockCode(stock.name, stock.code);
+  const officialName = getOfficialStockName(officialCode, stock.name);
+  const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
+  const sector = stock.sector || master.sector || guessSector(stock.theme, officialName);
   const price = (master.price && master.price !== 50000) ? master.price : (Number(stock.current_price) || 50000);
-  const rate = master.rate !== undefined ? master.rate : 3.09;
+  const rate = master.rate !== undefined ? master.rate : 0.0;
   const isUp = rate >= 0;
 
   const item = {
     theme: stock.theme || master.theme || '쇼츠추천',
-    name: stock.name,
-    code: stock.code || master.code || '000000',
+    name: officialName,
+    code: officialCode,
     sector: sector,
     price: price,
     change: master.change || Math.round(price * (rate / 100)),
     rate: rate,
     volume: master.volume || 120000,
     tradeValue: master.tradeValue || Number(stock.trade_value) || 60,
-    foreign: master.foreign || '+1.5만',
-    inst: master.inst || '+8천',
+    foreign: master.foreign || '-',
+    foreignLive: master.foreignLive || null,
+    inst: master.inst || '-',
     dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
     date: dateStr || new Date().toISOString().split('T')[0],
     reason: stock.reason || master.reason || '영상 추천 종목'
   };
   addStockToStorage(item);
   renderExcelWatchlist();
-  alert(`✅ '${item.name}' 종목이 관심종목 테이블에 추가되었습니다!`);
+  alert(`✅ '${item.name}' (${item.code}) 종목이 관심종목 테이블에 추가되었습니다!`);
 }
 
 // 전체 종목 한번에 추가
@@ -890,31 +927,34 @@ function handleAddAllDetectedStocks() {
   }
   const dateStr = currentAnalysis.date || new Date().toISOString().split('T')[0];
   currentAnalysis.stocks.forEach(stock => {
-    const master = MASTER_STOCK_INFO[stock.name] || {};
-    const sector = stock.sector || master.sector || guessSector(stock.theme, stock.name);
+    const officialCode = getOfficialStockCode(stock.name, stock.code);
+    const officialName = getOfficialStockName(officialCode, stock.name);
+    const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
+    const sector = stock.sector || master.sector || guessSector(stock.theme, officialName);
     const price = (master.price && master.price !== 50000) ? master.price : (Number(stock.current_price) || 50000);
-    const rate = master.rate !== undefined ? master.rate : 3.09;
+    const rate = master.rate !== undefined ? master.rate : 0.0;
     const isUp = rate >= 0;
 
     addStockToStorage({
       theme: stock.theme || master.theme || '쇼츠추천',
-      name: stock.name,
-      code: stock.code || master.code || '000000',
+      name: officialName,
+      code: officialCode,
       sector: sector,
       price: price,
       change: master.change || Math.round(price * (rate / 100)),
       rate: rate,
       volume: master.volume || 120000,
       tradeValue: master.tradeValue || Number(stock.trade_value) || 60,
-      foreign: master.foreign || '+1.5만',
-      inst: master.inst || '+8천',
+      foreign: master.foreign || '-',
+      foreignLive: master.foreignLive || null,
+      inst: master.inst || '-',
       dayCandle: { left: isUp ? 42 : 12, width: 38, up: isUp },
       date: dateStr,
       reason: stock.reason || master.reason || '영상 추천 종목'
     });
   });
   renderExcelWatchlist();
-  alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 모두 관심종목 테이블에 등록되었습니다!`);
+  alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 모두 공식 종목코드로 관심종목 테이블에 등록되었습니다!`);
 }
 
 // 리포트 복사
@@ -957,14 +997,29 @@ async function initWatchlist() {
     }
   }
 
-  // 기존에 저장된 데이터의 누락/비정상 시세, 일반 업종, 당일봉 음봉/양봉 정합성 자동 치료 (Self-Healing)
+  // 기존에 저장된 데이터의 오타, 누락/비정상 시세, 일반 업종, 당일봉 정합성 자동 치료 (Self-Healing)
   list.forEach(item => {
+    // 1. 오타 교정
+    if (item.name === '빗샘전자') item.name = '빛샘전자';
+    if (item.name === '한국전력기술') item.name = '한전기술';
+
+    // 2. KRX 3,944개 공식 종목코드 강제 자동 매핑
+    const officialCode = getOfficialStockCode(item.name, item.code);
+    if (officialCode && officialCode !== '000000') {
+      item.code = officialCode;
+    }
+
     const master = MASTER_STOCK_INFO[item.name];
     if (master) {
-      if (!item.tradeValue || item.tradeValue === 0 || item.tradeValue < 100 && master.tradeValue > 300) item.tradeValue = master.tradeValue;
-      if (!item.rate || item.rate === 0) item.rate = master.rate;
-      if (!item.change || item.change === 0) item.change = master.change;
-      // 5만원 기본값으로 잘못 들어간 종목(효성중공업 50,071원, 현대일렉트릭 49,999원, 하이닉스 50,193원, 우리넷 49,686원 등) 전격 치료
+      if (!item.tradeValue || item.tradeValue === 0) item.tradeValue = master.tradeValue;
+      if (item.rate === undefined || item.rate === null) item.rate = master.rate;
+      if (item.change === undefined || item.change === null) item.change = master.change;
+      // 과거 가짜 시세(SFA반도체 49,125원 등) 및 5만원대 기본값 전격 실측값으로 치료
+      if (item.name === 'SFA반도체' && item.price > 30000) item.price = master.price;
+      if (item.name === '삼아알미늄' && item.price < 50000) item.price = master.price;
+      if (item.name === '효성중공업' && item.price < 1000000) item.price = master.price;
+      if (item.name === 'SK하이닉스' && item.price < 500000) item.price = master.price;
+      if (item.name === 'HD현대일렉트릭' && item.price < 400000) item.price = master.price;
       if (!item.price || (item.price >= 48000 && item.price <= 52000 && master.price !== 50000)) {
         item.price = master.price;
         item.change = master.change;
@@ -973,23 +1028,21 @@ async function initWatchlist() {
       if (!item.sector || item.sector === '-' || item.sector === '일반') item.sector = master.sector;
       if (!item.theme || item.theme === '추천' || item.theme === '쇼츠추천') item.theme = master.theme;
       if (!item.foreign || item.foreign === '-') item.foreign = master.foreign;
+      if (master.foreignLive && !item.foreignLive) item.foreignLive = master.foreignLive;
       if (!item.inst || item.inst === '-') item.inst = master.inst;
       if (!item.reason || item.reason === '투자 포인트' || item.reason === '영상 추천 종목') item.reason = master.reason;
       if (master.code) item.code = master.code;
     } else {
-      // 마스터에 없더라도 테마명과 종목명으로 업종 자동 치환 ('일반' 퇴출)
       if (!item.sector || item.sector === '-' || item.sector === '일반') {
         item.sector = guessSector(item.theme, item.name);
       }
     }
 
-    // 당일봉 음봉/양봉 정합성 강제 동기화 (우리넷 등 음봉 종목은 무조건 파란색 음봉)
+    // 당일봉 음봉/양봉 정합성 강제 동기화
     const isUp = (Number(item.rate) || 0) >= 0;
-    item.dayCandle = {
-      left: isUp ? 42 : 12,
-      width: 38,
-      up: isUp
-    };
+    if (!item.dayCandle) {
+      item.dayCandle = { left: isUp ? 42 : 12, width: 38, up: isUp };
+    }
   });
 
   if (list.length === 0) {
@@ -1187,8 +1240,14 @@ function renderExcelWatchlist() {
           <td style="text-align:center;">
             ${renderHtsCandleSvg(stock.rate)}
           </td>
-          <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">${stock.foreign || '-'}</td>
-          <td style="color:${String(stock.inst).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">${stock.inst || '-'}</td>
+          <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">
+            <div>${stock.foreign || '-'}</div>
+            ${stock.foreignLive ? `<span style="font-size:0.68rem; color:#facc15; font-weight:700; background:rgba(250,204,21,0.15); padding:1px 4px; border-radius:3px; display:inline-block; margin-top:2px;" title="장중 외국계 잠정 가집계">(장중:${stock.foreignLive})</span>` : ''}
+          </td>
+          <td style="color:${String(stock.inst).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">
+            <div>${stock.inst || '-'}</div>
+            ${stock.investorDate ? `<span style="font-size:0.65rem; color:#94a3b8; display:block;" title="수급 확정 기준일">(${stock.investorDate.slice(4,6)}.${stock.investorDate.slice(6,8)})</span>` : ''}
+          </td>
           <td style="text-align:center;">
             <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="삭제">&times;</button>
           </td>
@@ -1270,39 +1329,113 @@ function renderHtsCandleSvg(rate = 0) {
 }
 
 // ==========================================
-// 7. 실시간 시세 시뮬레이션 및 Ticker 업데이트
+// 7. 실시간 시세 및 외인/기관 수급 동기화 엔진 (가짜 난수 완전 삭제)
 // ==========================================
 function startLiveStockTicker() {
   if (liveInterval) clearInterval(liveInterval);
+  // 30초마다 로컬 KIS 브릿지 또는 서버 원본으로부터 실시간 시세 동기화
   liveInterval = setInterval(() => {
     updateLivePrices(false);
-  }, 4000);
+  }, 30000);
 }
 
-function updateLivePrices(isManual = false) {
+async function updateLivePrices(isManual = false) {
   const list = getWatchlist();
   if (list.length === 0) return;
 
-  list.forEach(item => {
-    const delta = (Math.random() - 0.48) * 0.004; // 미세 틱 변동
-    const newRate = Number(((item.rate || 0) + delta).toFixed(2));
-    const newPrice = Math.round((item.price || 50000) * (1 + delta));
-    item.price = newPrice;
-    item.rate = newRate;
-    if (item.tradeValue) {
-      item.tradeValue = Math.max(1, Math.round(item.tradeValue + (Math.random() > 0.6 ? 1 : 0)));
+  let updatedCount = 0;
+  let source = '시세 동기화';
+
+  // 1. 로컬 KIS 실전 API 브릿지(kis_live_sync.py) 연결 시도
+  let synced = false;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 900);
+    const resp = await fetch('http://localhost:8099/api/stocks', { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const liveData = await resp.json();
+      if (Array.isArray(liveData) && liveData.length > 0) {
+        const liveMap = new Map();
+        liveData.forEach(item => {
+          if (item.code) liveMap.set(item.code, item);
+          if (item.name) liveMap.set(item.name, item);
+        });
+
+        list.forEach(item => {
+          const match = liveMap.get(item.code) || liveMap.get(item.name);
+          if (match) {
+            item.price = match.price;
+            item.change = match.change;
+            item.rate = match.rate;
+            item.volume = match.volume;
+            item.tradeValue = match.tradeValue;
+            if (match.foreign) item.foreign = match.foreign;
+            if (match.foreignLive) item.foreignLive = match.foreignLive;
+            if (match.inst) item.inst = match.inst;
+            if (match.investorDate) item.investorDate = match.investorDate;
+            if (match.dayCandle) item.dayCandle = match.dayCandle;
+            updatedCount++;
+          }
+        });
+        source = '🟢 KIS 실전 실시간';
+        synced = true;
+      }
     }
-  });
+  } catch (e) {
+    // 로컬 브릿지 오프라인 시 조용히 2단계 진행
+  }
+
+  // 2. 로컬 브릿지가 꺼져 있으면 서버 원본(watchlist.json) 실측 시세와 동기화
+  if (!synced) {
+    try {
+      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+      if (resp.ok) {
+        const cloudList = await resp.json();
+        if (Array.isArray(cloudList) && cloudList.length > 0) {
+          const cloudMap = new Map();
+          cloudList.forEach(item => {
+            if (item.code) cloudMap.set(item.code, item);
+            if (item.name) cloudMap.set(item.name, item);
+          });
+
+          list.forEach(item => {
+            const match = cloudMap.get(item.code) || cloudMap.get(item.name);
+            if (match) {
+              item.price = match.price;
+              item.change = match.change;
+              item.rate = match.rate;
+              item.volume = match.volume;
+              item.tradeValue = match.tradeValue;
+              if (match.foreign) item.foreign = match.foreign;
+              if (match.foreignLive) item.foreignLive = match.foreignLive;
+              if (match.inst) item.inst = match.inst;
+              if (match.investorDate) item.investorDate = match.investorDate;
+              if (match.dayCandle) item.dayCandle = match.dayCandle;
+              updatedCount++;
+            }
+          });
+          source = '☁️ 공식 시세 동기화';
+          synced = true;
+        }
+      }
+    } catch (err) {
+      console.warn('시세 동기화 fetch 실패:', err);
+    }
+  }
 
   localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
   renderExcelWatchlist();
 
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-  document.getElementById('liveRefreshTime').innerText = `● ${timeStr} 실시간 갱신`;
+  const statusEl = document.getElementById('liveRefreshTime');
+  if (statusEl) {
+    statusEl.innerText = `● ${timeStr} [${source}]`;
+  }
 
   if (isManual) {
-    alert('🔄 최신 실시간 시세가 갱신되었습니다!');
+    alert(`🔄 [실시간 시세 갱신 완료]\n${source}를 통해 ${updatedCount}개 관심종목의 실제 시장가 및 외국인/기관 수급이 동기화되었습니다!`);
   }
 }
 
