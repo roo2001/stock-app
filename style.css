@@ -259,6 +259,11 @@ body {
   color: #94a3b8;
 }
 
+.drop-zone.has-file .hidden-file-input {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .file-info-text {
   font-size: 0.85rem;
   color: #60a5fa;
@@ -268,14 +273,26 @@ body {
 }
 
 .btn-remove-file {
+  position: relative;
+  z-index: 50;
   background: #dc2626;
   color: #fff;
   border: none;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  padding: 4px 12px;
+  padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+}
+
+.btn-remove-file:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
 }
 
 /* 정렬 셀렉터 */
@@ -638,12 +655,28 @@ input:focus {
 }
 
 .stock-del-btn {
-  background: none;
-  border: none;
-  color: #6b7280;
-  font-size: 1.1rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.stock-del-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
 }
 
 /* 모달 */
@@ -825,13 +858,155 @@ textarea#firebaseConfigInput:focus {
 .btn-add-single {
   background-color: #2563eb;
   color: #ffffff;
-  border: none;
-  padding: 6px 12px;
+  border: 1px solid #1d4ed8;
+  padding: 6px 14px;
   border-radius: 6px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-add-single:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn-add-single.added {
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+  cursor: default !important;
+  transform: none !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+
+.btn-add-single.already-added {
+  background-color: #1e293b !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+  cursor: pointer;
+}
+
+.btn-add-single.already-added:hover {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* 중복 종목 처리 모달 */
+.dup-modal-content {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 460px;
+  width: 90%;
+  color: #f8fafc;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7);
+  animation: modalFadeIn 0.2s ease;
+}
+
+.dup-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #facc15;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dup-desc {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  background: rgba(30, 41, 59, 0.6);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3px solid #facc15;
+}
+
+.dup-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dup-btn-overwrite {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: 1px solid #3b82f6;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dup-btn-overwrite:hover {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  transform: translateY(-1px);
+}
+
+.dup-btn-overwrite span.sub-text {
+  font-size: 0.75rem;
+  color: #bfdbfe;
+  font-weight: 400;
+}
+
+.dup-btn-keepboth {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: #fff;
+  border: 1px solid #10b981;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dup-btn-keepboth:hover {
+  background: linear-gradient(135deg, #047857, #065f46);
+  transform: translateY(-1px);
+}
+
+.dup-btn-keepboth span.sub-text {
+  font-size: 0.75rem;
+  color: #a7f3d0;
+  font-weight: 400;
+}
+
+.dup-btn-cancel {
+  background: #334155;
+  color: #cbd5e1;
+  border: 1px solid #475569;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.dup-btn-cancel:hover {
+  background: #475569;
+  color: #fff;
 }
 
 /* 실시간 상태 바 */
@@ -904,7 +1079,7 @@ textarea#firebaseConfigInput:focus {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.84rem;
-  min-width: 680px;
+  min-width: 980px;
 }
 
 .excel-table th {
@@ -923,6 +1098,19 @@ textarea#firebaseConfigInput:focus {
   text-align: left;
 }
 
+/* 관리 열 우측 고정 (Sticky) */
+.excel-table th:last-child,
+.excel-table td:last-child {
+  position: sticky;
+  right: 0;
+  background-color: #0b1329;
+  z-index: 5;
+  width: 64px;
+  min-width: 64px;
+  text-align: center !important;
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.4);
+}
+
 .excel-table td {
   padding: 10px;
   border-bottom: 1px solid #1e293b;
@@ -939,6 +1127,10 @@ textarea#firebaseConfigInput:focus {
 
 .excel-table tr:hover {
   background-color: rgba(59, 130, 246, 0.05);
+}
+
+.excel-table tr:hover td:last-child {
+  background-color: #111d3d;
 }
 
 .theme-tag {

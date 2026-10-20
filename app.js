@@ -336,6 +336,7 @@ function initFileUpload() {
   });
 
   btnRemove.addEventListener('click', (e) => {
+    e.preventDefault();
     e.stopPropagation();
     clearUploadedFile();
   });
@@ -366,6 +367,7 @@ function initFileUpload() {
     currentUploadedText = null;
     currentUploadedType = null;
 
+    dropZone.classList.add('has-file');
     dropContent.classList.add('hidden');
     previewContainer.classList.remove('hidden');
     fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
@@ -521,6 +523,7 @@ function initFileUpload() {
     imagePreview.src = '';
     videoPreview.src = '';
     if (docPreview) docPreview.classList.add('hidden');
+    dropZone.classList.remove('has-file');
     dropContent.classList.remove('hidden');
     previewContainer.classList.add('hidden');
   }
@@ -932,8 +935,12 @@ async function handleAnalyze() {
 
 [핵심 분석 및 날짜 추출 규칙]:
 1. **날짜(date) 최우선 추출 (가장 중요)**: 자료(영상 제목, 자막, 화면 텍스트, PDF 문서 상단 발행일자, 엑셀 날짜 열 등)에 표기된 날짜(예: "10월 16일", "10.16", "2026-10-16", "10/17" 등)를 반드시 최우선으로 정밀 감지하여 해당 일자를 "YYYY-MM-DD" 형식으로 "date"에 입력하세요. 만약 연도가 없으면 현재 연도(2026년 또는 2024년)를 붙여 "YYYY-MM-DD"로 완성하세요. 문서/영상 내에 날짜 단서가 전혀 없을 때에만 오늘 기준일(${todayStr})을 사용하세요.
-2. **추천 이유(reason)**: 해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 북미 수출, 수급, 캔들 지지, 밸류에이션 등)를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
-3. **업종(sector)**: 한국거래소 공식 업종명(전기장비, 반도체, 통신장비, 제약바이오, 2차전지 등)을 정확히 기재하세요. '일반' 같은 모호한 단어는 금지합니다.
+2. **목표가/손절가/지지선/저항선 엄격 원칙 (절대 준수)**:
+   - ⚠️ 영상의 차트 이미지만 보고 AI가 임의로 목표가나 지지선을 기술적으로 추정/상상(할루시네이션)하여 작성하는 행위를 **절대 엄격히 금지**합니다!
+   - 오직 영상의 음성, 자막, 화면 텍스트 또는 리포트 본문에 **화자가 구체적인 가격 수치를 '직접적으로 명시하여 언급한 경우'에만** 해당 가격을 기재하세요. (예: "73,000원")
+   - 자료 내에 목표가나 손절가 수치가 직접적으로 언급되지 않은 경우에는 **반드시 예외 없이 "미제시"**로 출력하세요.
+3. **추천 이유(reason)**: 해당 종목을 추천하거나 주목하는 구체적인 이유(실적 호재, 북미 수출, 수급, 밸류에이션 등)를 각 종목의 "reason"에 1~2줄로 명확하게 요약하여 포함하세요.
+4. **업종(sector)**: 한국거래소 공식 업종명(전기장비, 반도체, 통신장비, 제약바이오, 2차전지 등)을 정확히 기재하세요. '일반' 같은 모호한 단어는 금지합니다.
 
 반드시 아래 순수 JSON 형식으로만 응답하세요. (마크다운 코드블록 제외)
 
@@ -950,8 +957,8 @@ JSON 스키마:
       "sector": "공식 업종분류 (예: 전기장비, 반도체, 통신장비, 제약바이오 등)",
       "current_price": "자료 속 가격 또는 현재 추정 시세 (숫자만, 예: 188800)",
       "trade_value": "추정 거래대금 (억원 단위 숫자, 예: 850)",
-      "support": "지지선 가격 (예: 180,000원 또는 미제시)",
-      "target": "목표가 (예: 220,000원 또는 미제시)",
+      "support": "원문에 직접 언급된 지지선 가격 (언급 없으면 '미제시')",
+      "target": "원문에 직접 언급된 목표가 (언급 없으면 '미제시')",
       "reason": "추천 이유: 화자 또는 리포트가 이 종목을 추천하거나 강조한 핵심 근거 요약"
     }
   ],
@@ -960,10 +967,10 @@ JSON 스키마:
     "2. 두 번째 차트/수급/실적 흐름 요약",
     "3. 세 번째 핵심 투자 전략 및 결론 요약"
   ],
-  "support": "대표 지지선 가격",
-  "resistance": "대표 저항선 가격",
-  "target": "대표 목표가",
-  "stop_loss": "대표 손절선"
+  "support": "원문에 직접 언급된 대표 지지선 (언급 없으면 '미제시')",
+  "resistance": "원문에 직접 언급된 대표 저항선 (언급 없으면 '미제시')",
+  "target": "원문에 직접 언급된 대표 목표가 (언급 없으면 '미제시')",
+  "stop_loss": "원문에 직접 언급된 대표 손절선 (언급 없으면 '미제시')"
 }
 `;
 
@@ -1107,19 +1114,28 @@ function renderAnalysisResult(res) {
   if (stocks.length === 0) {
     listEl.innerHTML = '<p style="color:#9ca3af; font-size:0.9rem;">감지된 종목이 없습니다.</p>';
   } else {
+    const currentWatchlist = getWatchlist();
     stocks.forEach((s, idx) => {
+      const officialCode = getOfficialStockCode(s.name, s.code);
+      const officialName = getOfficialStockName(officialCode, s.name);
+      const isAlready = currentWatchlist.some(item => item.name === officialName || item.code === officialCode);
+
       const card = document.createElement('div');
       card.className = 'multi-stock-card';
+      const btnClass = isAlready ? 'btn-add-single already-added' : 'btn-add-single';
+      const btnText = isAlready ? '✓ 등록됨' : '+ 추가';
+
       card.innerHTML = `
         <div class="multi-stock-info">
           <h4>${s.name} <span style="font-size:0.8rem; color:#9ca3af;">(${s.code || '000000'})</span> <span class="theme-tag">${s.theme || '추천'}</span></h4>
           <p style="color:#fde047; font-weight:600; font-size:0.84rem;">💡 추천 이유: ${s.reason || '투자 포인트'}</p>
           <span class="multi-stock-target">목표가: ${s.target || '미제시'} | 지지선: ${s.support || '미제시'}</span>
         </div>
-        <button class="btn-add-single" data-idx="${idx}">+ 추가</button>
+        <button class="${btnClass}" data-idx="${idx}">${btnText}</button>
       `;
-      card.querySelector('.btn-add-single').addEventListener('click', () => {
-        addSingleDetectedStock(s, res.date, res);
+      const btn = card.querySelector('.btn-add-single');
+      btn.addEventListener('click', () => {
+        addSingleDetectedStock(s, res.date, res, btn);
       });
       listEl.appendChild(card);
     });
@@ -1185,8 +1201,157 @@ async function requestSingleStockLive(item) {
   }
 }
 
-// 개별 종목 추가 (4대 매매 기준가 및 3줄 요약 영구 저장)
-function addSingleDetectedStock(stock, dateStr, res) {
+// ==========================================
+// 네이버 증권 실시간 시세 조회 엔진 (신규 종목 0원 탈출)
+// ==========================================
+async function fetchLiveNaverStockPrice(code, name) {
+  if (!code || code === '000000') return null;
+  const targetUrl = `https://m.stock.naver.com/api/stock/${code}/basic`;
+  let data = null;
+
+  // 1차: allorigins CORS 프록시 시도
+  try {
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(3500) });
+    if (resp.ok) data = await resp.json();
+  } catch (e1) {
+    // 2차: corsproxy 시도
+    try {
+      const p2 = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+      const resp2 = await fetch(p2, { signal: AbortSignal.timeout(3000) });
+      if (resp2.ok) data = await resp2.json();
+    } catch (e2) {
+      // 3차: 직접 fetch 시도
+      try {
+        const resp3 = await fetch(targetUrl, { signal: AbortSignal.timeout(2000) });
+        if (resp3.ok) data = await resp3.json();
+      } catch (e3) {}
+    }
+  }
+
+  if (data) {
+    try {
+      const parseNum = (val) => {
+        if (!val) return 0;
+        return Number(String(val).replace(/,/g, '').trim()) || 0;
+      };
+
+      const price = parseNum(data.closePrice || data.nowPrice);
+      const change = parseNum(data.compareToPreviousClosePrice || data.changePrice);
+      let rate = parseNum(data.fluctuationsRatio || data.changeRate);
+      if (data.compareToPreviousPrice?.name?.includes('하락') && rate > 0) rate = -rate;
+      const volume = parseNum(data.accumulatedTradingVolume);
+      let tradeValue = parseNum(data.accumulatedTradingValue);
+      if (tradeValue > 100000000) {
+        tradeValue = Math.round(tradeValue / 100000000);
+      } else if (data.accumulatedTradingValueHangeul) {
+        const m = String(data.accumulatedTradingValueHangeul).match(/(\d+)억/);
+        if (m) tradeValue = Number(m[1]);
+      }
+      const oprc = parseNum(data.openPrice);
+      const hgpr = parseNum(data.highPrice);
+      const lwpr = parseNum(data.lowPrice);
+      const isUp = oprc > 0 ? (price >= oprc) : (rate >= 0);
+
+      const list = getWatchlist();
+      let modified = false;
+      list.forEach(item => {
+        if (item.code === code || item.name === name) {
+          if (price > 0) item.price = price;
+          item.change = change;
+          item.rate = rate;
+          if (volume > 0) item.volume = volume;
+          if (tradeValue > 0) item.tradeValue = tradeValue;
+          if (oprc > 0) item.open = oprc;
+          if (hgpr > 0) item.high = hgpr;
+          if (lwpr > 0) item.low = lwpr;
+          item.dayCandle = { left: isUp ? 42 : 12, width: 38, up: isUp };
+          modified = true;
+        }
+      });
+
+      if (modified) {
+        saveWatchlist(list);
+        renderExcelWatchlist();
+      }
+      return data;
+    } catch (err) {
+      console.warn('네이버 시세 데이터 파싱 오류:', err);
+    }
+  }
+  return null;
+}
+
+function markButtonAdded(btn) {
+  if (!btn) return;
+  btn.className = 'btn-add-single added';
+  btn.innerHTML = '✓ 추가완료';
+  btn.disabled = true;
+}
+
+// 중복 종목 처리 선택 팝업 (사용자 승인: 방안 2)
+function checkAndAddStockWithDupCheck(item, btnElement, onSuccess) {
+  const currentList = getWatchlist();
+  const existingIndex = currentList.findIndex(s => s.name === item.name || s.code === item.code);
+
+  if (existingIndex !== -1) {
+    const existing = currentList[existingIndex];
+    const dupModal = document.getElementById('duplicateStockModal');
+    const titleEl = document.getElementById('dupModalStockTitle');
+    const descEl = document.getElementById('dupModalStockDesc');
+    const btnOverwrite = document.getElementById('btnDupOverwrite');
+    const btnKeepBoth = document.getElementById('btnDupKeepBoth');
+    const btnCancel = document.getElementById('btnDupCancel');
+
+    titleEl.innerText = `'${item.name}' (${item.code}) 중복 안내`;
+    descEl.innerHTML = `
+      현재 관심종목 목록에 <b>[${existing.date || '기존'}]</b>에 등록된 <b>${existing.name}</b> 종목이 이미 존재합니다.<br><br>
+      • <b>최신 데이터로 덮어쓰기</b>: 기존 항목을 오늘 날짜(${item.date}) 및 최신 분석 정보로 교체합니다.<br>
+      • <b>날짜별 이력으로 추가 보존</b>: 과거 기록을 그대로 남겨두고, 오늘 요일 블록에도 별도로 새 항목을 추가합니다.
+    `;
+
+    dupModal.classList.remove('hidden');
+
+    const cleanup = () => {
+      dupModal.classList.add('hidden');
+      btnOverwrite.onclick = null;
+      btnKeepBoth.onclick = null;
+      btnCancel.onclick = null;
+    };
+
+    btnOverwrite.onclick = () => {
+      cleanup();
+      currentList[existingIndex] = { ...existing, ...item };
+      saveWatchlist(currentList);
+      fetchLiveNaverStockPrice(item.code, item.name);
+      markButtonAdded(btnElement);
+      if (onSuccess) onSuccess();
+      alert(`🔄 '${item.name}' 종목이 최신 분석 데이터로 성공적으로 갱신되었습니다!`);
+    };
+
+    btnKeepBoth.onclick = () => {
+      cleanup();
+      addStockToStorage(item);
+      fetchLiveNaverStockPrice(item.code, item.name);
+      markButtonAdded(btnElement);
+      if (onSuccess) onSuccess();
+      alert(`➕ '${item.name}' 종목이 오늘(${item.date}) 날짜의 새로운 추천 이력으로 추가되었습니다!`);
+    };
+
+    btnCancel.onclick = () => {
+      cleanup();
+    };
+  } else {
+    addStockToStorage(item);
+    fetchLiveNaverStockPrice(item.code, item.name);
+    markButtonAdded(btnElement);
+    if (onSuccess) onSuccess();
+    alert(`✅ '${item.name}' (${item.code}) 종목이 관심종목 테이블에 추가되었습니다!`);
+  }
+}
+
+// 개별 종목 추가 (중복 감지 팝업 연동 및 실시간 시세 수신)
+function addSingleDetectedStock(stock, dateStr, res, btnElement) {
   const officialCode = getOfficialStockCode(stock.name, stock.code);
   const officialName = getOfficialStockName(officialCode, stock.name);
   const master = MASTER_STOCK_INFO[officialName] || MASTER_STOCK_INFO[stock.name] || {};
@@ -1252,13 +1417,11 @@ function addSingleDetectedStock(stock, dateStr, res) {
     sentiment: sentimentVal,
     reason: stock.reason || master.reason || '영상 추천 종목'
   };
-  addStockToStorage(item);
-  renderExcelWatchlist();
-  requestSingleStockLive(item);
-  alert(`✅ '${item.name}' (${item.code}) 종목이 4대 매매 기준가와 함께 관심종목 테이블에 추가되었습니다!`);
+
+  checkAndAddStockWithDupCheck(item, btnElement);
 }
 
-// 전체 종목 한번에 추가 (4대 매매 기준가 및 3줄 요약 영구 저장)
+// 전체 종목 한번에 추가 (버튼 일괄 전환 & 실시간 시세 연동)
 function handleAddAllDetectedStocks() {
   if (!currentAnalysis || !currentAnalysis.stocks || currentAnalysis.stocks.length === 0) {
     alert('추가할 종목이 없습니다.');
@@ -1331,9 +1494,22 @@ function handleAddAllDetectedStocks() {
       reason: stock.reason || master.reason || '영상 추천 종목'
     };
     addStockToStorage(item);
-    requestSingleStockLive(item);
+    fetchLiveNaverStockPrice(item.code, item.name);
   });
+
   renderExcelWatchlist();
+
+  // 모든 개별 카드 버튼 상태를 ✓ 추가완료로 일괄 전환
+  document.querySelectorAll('#resStocksList .btn-add-single').forEach(b => {
+    markButtonAdded(b);
+  });
+
+  const btnAddAll = document.getElementById('btnAddAllStocks');
+  if (btnAddAll) {
+    btnAddAll.innerText = '✓ 전체 종목 추가완료';
+    btnAddAll.style.background = '#10b981';
+  }
+
   alert(`✅ 포착된 ${currentAnalysis.stocks.length}개 종목이 4대 매매 기준가와 함께 관심종목 테이블에 등록되었습니다!`);
 }
 
@@ -1685,7 +1861,7 @@ function renderExcelWatchlist() {
             ${stock.investorDate ? `<span style="font-size:0.65rem; color:#94a3b8; display:block;" title="수급 확정 기준일">(${stock.investorDate.slice(4,6)}.${stock.investorDate.slice(6,8)})</span>` : ''}
           </td>
           <td style="text-align:center;">
-            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="삭제">&times;</button>
+            <button class="stock-del-btn" onclick="handleDeleteStock('${stock.name}', '${stock.date || ''}')" title="'${stock.name}' 관심종목 삭제">🗑️ 삭제</button>
           </td>
         </tr>
       `;
@@ -1879,6 +2055,20 @@ async function updateLivePrices(isManual = false) {
       }
     } catch (err) {
       console.warn('시세 동기화 fetch 실패:', err);
+    }
+  }
+
+  // 3. watchlist.json에 없었거나 시세가 0원인 신규 종목들(예: 펌텍코리아 251970 등) 네이버 증권 실시간 API로 직접 동기화
+  const zeroPriceItems = list.filter(item => !item.price || item.price === 0 || !item.tradeValue);
+  if (zeroPriceItems.length > 0) {
+    for (const zItem of zeroPriceItems) {
+      try {
+        const liveRes = await fetchLiveNaverStockPrice(zItem.code, zItem.name);
+        if (liveRes) {
+          updatedCount++;
+          source = '⚡ 네이버 실시간 시세';
+        }
+      } catch (e) {}
     }
   }
 

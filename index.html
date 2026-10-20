@@ -324,11 +324,36 @@
     </div>
   </div>
 
+  <!-- 중복 종목 처리 선택 모달 (방안 2) -->
+  <div id="duplicateStockModal" class="modal hidden">
+    <div class="dup-modal-content">
+      <div class="dup-title">
+        <span>⚠️</span>
+        <span id="dupModalStockTitle">이미 등록된 종목입니다</span>
+      </div>
+      <div class="dup-desc" id="dupModalStockDesc">
+        해당 종목이 이미 관심종목에 등록되어 있습니다.<br>
+        어떤 방식으로 처리할지 선택해 주세요.
+      </div>
+      <div class="dup-btn-group">
+        <button id="btnDupOverwrite" class="dup-btn-overwrite">
+          <span>🔄 최신 데이터로 덮어쓰기</span>
+          <span class="sub-text">기존 등록 내역을 오늘 날짜, 최신 추천이유 및 4대 기준가로 교체합니다.</span>
+        </button>
+        <button id="btnDupKeepBoth" class="dup-btn-keepboth">
+          <span>➕ 날짜별 이력으로 추가 보존</span>
+          <span class="sub-text">과거 추천 내역을 그대로 두고, 오늘 요일 블록에도 별도로 추가합니다.</span>
+        </button>
+        <button id="btnDupCancel" class="dup-btn-cancel">취소</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 엑셀(.xlsx, .xls) 파서 (SheetJS) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v22) -->
-  <script src="stock_master.js?v=22"></script>
+  <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v23) -->
+  <script src="stock_master.js?v=23"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
