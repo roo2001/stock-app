@@ -1811,16 +1811,35 @@ async function initWatchlist() {
     list = [];
   }
 
-  // 만약 비어있다면 watchlist.json 파일에서 로드 시도
-  if (list.length === 0) {
-    try {
-      const resp = await fetch('./watchlist.json');
-      if (resp.ok) {
-        list = await resp.json();
+  // [v29 핵심 개선] 서버의 마스터 25개 관심종목(watchlist.json)과 로컬 관심종목을 지능형 안전 병합!
+  // (로컬에 16개만 있더라도 서버의 25개 종목이 누락 없이 100% 안전하게 합쳐져 전원 복구됨!)
+  try {
+    const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+    if (resp.ok) {
+      const serverList = await resp.json();
+      if (Array.isArray(serverList) && serverList.length > 0) {
+        const itemMap = new Map();
+        // 1) 서버 마스터 종목(25개) 등록
+        serverList.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          itemMap.set(key, item);
+        });
+        // 2) 로컬 기기에만 있는 종목 및 사용자 수정치 안전 보존
+        list.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          if (!itemMap.has(key)) {
+            itemMap.set(key, item);
+          } else {
+            const base = itemMap.get(key);
+            itemMap.set(key, { ...base, ...item });
+          }
+        });
+        list = Array.from(itemMap.values());
+        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
       }
-    } catch (e) {
-      console.warn('watchlist.json fetch 실패, 내장 마스터 사용:', e);
     }
+  } catch (e) {
+    console.warn('watchlist.json fetch 실패, 기존 로컬 유지:', e);
   }
 
   // 기존에 저장된 데이터의 오타, 누락/비정상 시세, 일반 업종, 당일봉 정합성 자동 치료 (Self-Healing)
@@ -1983,21 +2002,12 @@ function renderExcelWatchlist() {
     return;
   }
 
-  const sortMode = document.getElementById('sortOrderSelect')?.value || 'addedDesc';
+  const sortMode = document.getElementById('sortOrderSelect')?.value || 'dateDesc';
 
   // 1. 선택된 정렬 모드에 따른 그룹화(Grouping)
   const groups = {};
 
-  if (sortMode === 'addedDesc') {
-    // 🆕 최신 추가순: 날짜와 상관없이 최근에 추가된 종목을 맨 위(최상단)로 정렬!
-    const sorted = [...list].sort((a, b) => {
-      const tA = a.addedAt || 0;
-      const tB = b.addedAt || 0;
-      if (tB !== tA) return tB - tA;
-      return 0; // 원래 unshift 순서 유지
-    });
-    groups['전체'] = sorted;
-  } else if (sortMode === 'themeAsc') {
+  if (sortMode === 'themeAsc') {
     // 🏷️ 테마별 그룹화
     list.forEach(item => {
       const key = item.theme || '기타 테마';
@@ -2057,9 +2067,7 @@ function renderExcelWatchlist() {
 
     // 헤더 라벨 구성
     let headerTitle = '';
-    if (sortMode === 'addedDesc') {
-      headerTitle = `🆕 최근 추가된 관심종목 (최신순)`;
-    } else if (sortMode === 'themeAsc') {
+    if (sortMode === 'themeAsc') {
       headerTitle = `🏷️ 테마: ${groupKey}`;
     } else if (sortMode === 'sectorAsc') {
       headerTitle = `🏭 업종: ${groupKey}`;
