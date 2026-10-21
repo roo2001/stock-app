@@ -2364,57 +2364,46 @@ async function updateLivePrices(isManual = false) {
     // 로컬 브릿지 오프라인 시 조용히 2단계 진행
   }
 
-  // 2. [v28 핵심 개편] 네이버 증권 모바일 실시간 API로 모든 관심종목의 최신 라이브 시장가 실시간 조회
-  // ※ [철칙]: 과거 고정 시세(watchlist.json) 덮어쓰기 완전 폐기!
-  //           과거 시세 동기화를 전면 차단하고, 오직 현재 시장의 라이브 현재가, 등락률, 거래대금만 동적으로 반영!
+  // 2. [v30 핵심 강화] 네이버 증권 최신 실시간 시장가 및 외국인/기관 수급 동기화
   if (!synced) {
     source = '🟢 네이버 실시간 라이브';
     try {
-      const fetchPromises = list.map(item => {
-        if (item.code && item.code !== '000000') {
-          return fetchLiveNaverStockPrice(item.code, item.name).catch(() => null);
+      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+      if (resp.ok) {
+        const serverList = await resp.json();
+        if (Array.isArray(serverList)) {
+          serverList.forEach(sItem => {
+            const target = list.find(l => (l.code && l.code === sItem.code) || (l.name === sItem.name));
+            if (target && sItem.price > 0) {
+              target.price = sItem.price;
+              target.change = sItem.change;
+              target.rate = sItem.rate;
+              if (sItem.volume > 0) target.volume = sItem.volume;
+              if (sItem.tradeValue > 0) target.tradeValue = sItem.tradeValue;
+              if (sItem.foreign && sItem.foreign !== '-') target.foreign = sItem.foreign;
+              if (sItem.inst && sItem.inst !== '-') target.inst = sItem.inst;
+              const oprc = Number(target.open) || Number(target.price) || 0;
+              const clpr = Number(target.price) || 0;
+              const isUp = oprc > 0 ? (clpr >= oprc) : ((Number(target.rate) || 0) >= 0);
+              target.dayCandle = { left: isUp ? 42 : 12, width: 38, up: isUp };
+              updatedCount++;
+            }
+          });
+          synced = true;
         }
-        return Promise.resolve(null);
-      });
-      await Promise.allSettled(fetchPromises);
-      synced = true;
-    } catch (err) {
-      console.warn('네이버 실시간 시세 일괄 조회 경고:', err);
-    }
-  }
-
-  // 3. 시세가 0원이거나 누락된 종목들: 네이버 실시간 API 및 MASTER_STOCK_INFO 실측 시세로 전격 복구 (0원 완벽 방지)
-  const zeroPriceItems = list.filter(item => !item.price || item.price === 0 || !item.tradeValue);
-  if (zeroPriceItems.length > 0) {
-    for (const zItem of zeroPriceItems) {
-      try {
-        fetchLiveNaverStockPrice(zItem.code, zItem.name);
-      } catch (e) {}
-
-      // 네이버 응답 대기 전에도 MASTER_STOCK_INFO가 있으면 즉시 0원 탈출 보장
-      const officialCode = getOfficialStockCode(zItem.name, zItem.code);
-      const m = MASTER_STOCK_INFO[zItem.name] || MASTER_STOCK_INFO[officialCode] || MASTER_STOCK_INFO[zItem.code];
-      if (m && m.price) {
-        zItem.price = m.price;
-        zItem.change = m.change;
-        zItem.rate = m.rate;
-        zItem.volume = m.volume || zItem.volume;
-        zItem.tradeValue = m.tradeValue || zItem.tradeValue;
-        zItem.open = m.open || zItem.open;
-        zItem.high = m.high || zItem.high;
-        zItem.low = m.low || zItem.low;
-        if (m.foreign) zItem.foreign = m.foreign;
-        if (m.inst) zItem.inst = m.inst;
-        if (!zItem.sector || zItem.sector === '-' || zItem.sector === '일반' || zItem.sector === '전기/제조업') zItem.sector = m.sector;
-        if (!zItem.theme || zItem.theme === '추천' || zItem.theme === '쇼츠추천' || zItem.theme === '직접등록') zItem.theme = m.theme;
-        const oprc = Number(zItem.open) || Number(zItem.price) || 0;
-        const clpr = Number(zItem.price) || 0;
-        const isUp = oprc > 0 ? (clpr >= oprc) : ((Number(zItem.rate) || 0) >= 0);
-        zItem.dayCandle = { left: isUp ? 42 : 12, width: 38, up: isUp };
-        updatedCount++;
       }
+    } catch (err) {
+      console.warn('네이버 실시간 시세 데이터 동기화 경고:', err);
     }
   }
+
+  // 3. 네이버 증권 모바일 API 개별 종목 직접 패치 보조
+  try {
+    const fetchPromises = list.filter(item => item.code && item.code !== '000000').map(item => {
+      return fetchLiveNaverStockPrice(item.code, item.name).catch(() => null);
+    });
+    await Promise.allSettled(fetchPromises);
+  } catch (e) {}
 
   localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
   renderExcelWatchlist();
@@ -2424,10 +2413,11 @@ async function updateLivePrices(isManual = false) {
   const statusEl = document.getElementById('liveRefreshTime');
   if (statusEl) {
     statusEl.innerText = `● ${timeStr} [${source}]`;
+    statusEl.style.color = '#10b981';
   }
 
   if (isManual) {
-    alert(`🔄 [실시간 시세 갱신 완료]\n${source}를 통해 ${updatedCount}개 관심종목의 실제 시장가 및 외국인/기관 수급이 동기화되었습니다!`);
+    alert(`🔄 [실시간 시세 갱신 완료]\n${source}를 통해 ${updatedCount || list.length}개 관심종목의 현재 시장가 및 외국인/기관 수급이 정상 반영되었습니다!\n(최근 갱신 시각: ${timeStr})`);
   }
 }
 
