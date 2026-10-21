@@ -158,7 +158,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMd = document.getElementById('btnExportMarkdown');
   if (btnMd) btnMd.addEventListener('click', exportToMarkdown);
 
-  // 수동 새로고침 버튼 (네이버 실시간 시세 즉시 반영)
+  // 클라우드 동기화 버튼 (v32 신설)
+  const btnCloud = document.getElementById('btnCloudSync');
+  if (btnCloud) {
+    btnCloud.addEventListener('click', async () => {
+      btnCloud.disabled = true;
+      btnCloud.innerText = '☁️ 동기화 중...';
+      try {
+        await initWatchlist();
+        await updateLivePrices(true);
+        renderExcelWatchlist();
+      } finally {
+        btnCloud.disabled = false;
+        btnCloud.innerText = '☁️ 클라우드 동기화';
+      }
+    });
+  }
+
+  // 수동 새로고침 버튼 (네이버/KIS 실시간 시세 즉시 반영)
   document.getElementById('btnManualRefresh').addEventListener('click', () => {
     updateLivePrices(true);
   });
@@ -1811,37 +1828,33 @@ async function initWatchlist() {
     list = [];
   }
 
-  // [v31 핵심 정비] 로컬에 남아있던 과거 중복 항목(32개)을 일괄 청소하고, 공식 마스터 25개 종목으로 완벽 자동 동기화!
+  // [v32 핵심 복원] 서버의 마스터 종목과 로컬 종목의 양방향 안전 병합!
+  // 사용자 추가 종목은 100% 영구 보존하며, 서버의 28개 마스터 종목 및 시세와 완벽 동기화!
   try {
     const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
     if (resp.ok) {
       const serverList = await resp.json();
       if (Array.isArray(serverList) && serverList.length > 0) {
-        const CLEAN_KEY = 'stock_shorts_v31_cleaned';
-        const isCleaned = localStorage.getItem(CLEAN_KEY) === 'true';
-
-        if (!isCleaned || list.length > serverList.length) {
-          // 과거 중복 데이터(32개 등)가 있으면 공식 25개 마스터로 깨끗하게 단일화!
-          list = serverList;
-          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
-          localStorage.setItem(CLEAN_KEY, 'true');
-        } else {
-          // 이미 정비된 기기에서는 종목별 시세/수정치만 안전 병합
-          const itemMap = new Map();
-          serverList.forEach(item => {
-            const key = `${item.date || ''}_${item.name}`;
+        const itemMap = new Map();
+        // 1) 서버 마스터 종목을 우선 등록
+        serverList.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          itemMap.set(key, item);
+        });
+        // 2) 로컬 브라우저에서 사용자가 직접 추가/수정한 종목 안전 병합 (절대 삭제 금지!)
+        list.forEach(item => {
+          const key = `${item.date || ''}_${item.name}`;
+          if (!itemMap.has(key)) {
+            // 로컬에만 있는 신규 추가 종목 보존
             itemMap.set(key, item);
-          });
-          list.forEach(item => {
-            const key = `${item.date || ''}_${item.name}`;
-            if (itemMap.has(key)) {
-              const base = itemMap.get(key);
-              itemMap.set(key, { ...base, ...item });
-            }
-          });
-          list = Array.from(itemMap.values());
-          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
-        }
+          } else {
+            // 둘 다 있는 경우: 사용자의 메모/수정치 및 최신 시세 결합
+            const base = itemMap.get(key);
+            itemMap.set(key, { ...base, ...item });
+          }
+        });
+        list = Array.from(itemMap.values());
+        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
       }
     }
   } catch (e) {
@@ -2330,21 +2343,6 @@ async function updateLivePrices(isManual = false) {
   let updatedCount = 0;
   let source = '시세 동기화';
 
-  // 0. [v31] 수동 새로고침 클릭 시 서버의 공식 25개 마스터로 즉시 완전 동기화 (32개 중복 잔재 일괄 제거)
-  if (isManual) {
-    try {
-      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
-      if (resp.ok) {
-        const serverList = await resp.json();
-        if (Array.isArray(serverList) && serverList.length > 0) {
-          list = serverList;
-          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
-          localStorage.setItem('stock_shorts_v31_cleaned', 'true');
-        }
-      }
-    } catch (e) {}
-  }
-
   // 1. 로컬 KIS 실전 API 브릿지(kis_live_sync.py) 연결 시도
   let synced = false;
   try {
@@ -2363,7 +2361,7 @@ async function updateLivePrices(isManual = false) {
 
         list.forEach(item => {
           const match = liveMap.get(item.code) || liveMap.get(item.name);
-          if (match) {
+          if (match && match.price > 0) {
             item.price = match.price;
             item.change = match.change;
             item.rate = match.rate;
@@ -2385,9 +2383,9 @@ async function updateLivePrices(isManual = false) {
     // 로컬 브릿지 오프라인 시 조용히 2단계 진행
   }
 
-  // 2. [v30 핵심 강화] 네이버 증권 최신 실시간 시장가 및 외국인/기관 수급 동기화
+  // 2. [v32] 서버 최신 시세 및 외국인/기관 수급 안전 병합
   if (!synced) {
-    source = '🟢 네이버 실시간 라이브';
+    source = '🟢 KIS/네이버 실시간 라이브';
     try {
       const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
       if (resp.ok) {
@@ -2414,14 +2412,16 @@ async function updateLivePrices(isManual = false) {
         }
       }
     } catch (err) {
-      console.warn('네이버 실시간 시세 데이터 동기화 경고:', err);
+      console.warn('실시간 시세 데이터 동기화 경고:', err);
     }
   }
 
-  // 3. 네이버 증권 모바일 API 개별 종목 직접 패치 보조
+  // 3. 네이버 증권 모바일 API 개별 종목 직접 패치 보조 (신규 종목용)
   try {
     const fetchPromises = list.filter(item => item.code && item.code !== '000000').map(item => {
-      return fetchLiveNaverStockPrice(item.code, item.name).catch(() => null);
+      return fetchLiveNaverStockPrice(item.code, item.name).then(res => {
+        if (res && res.price > 0) updatedCount++;
+      }).catch(() => null);
     });
     await Promise.allSettled(fetchPromises);
   } catch (e) {}
@@ -2433,12 +2433,12 @@ async function updateLivePrices(isManual = false) {
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   const statusEl = document.getElementById('liveRefreshTime');
   if (statusEl) {
-    statusEl.innerText = `● ${timeStr} [${source}]`;
+    statusEl.innerText = `● ${timeStr} [${source}] (총 ${list.length}개 종목)`;
     statusEl.style.color = '#10b981';
   }
 
   if (isManual) {
-    alert(`🔄 [실시간 시세 갱신 완료]\n${source}를 통해 ${updatedCount || list.length}개 관심종목의 현재 시장가 및 외국인/기관 수급이 정상 반영되었습니다!\n(최근 갱신 시각: ${timeStr})`);
+    alert(`🔄 [실시간 시세 갱신 완료]\n${source}를 통해 총 ${list.length}개 관심종목 중 ${updatedCount}개 종목의 실시간 시세 및 외인/기관 수급이 반영되었습니다!\n(최근 갱신 시각: ${timeStr})`);
   }
 }
 

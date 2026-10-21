@@ -1,5 +1,5 @@
-// sw.js - Service Worker for PWA (v31 캐시 갱신)
-const CACHE_NAME = 'stock-shorts-pwa-v31';
+// sw.js - Service Worker for PWA (v32 클라우드 동기화 및 28개 종목 KIS 실시간 연동)
+const CACHE_NAME = 'stock-shorts-pwa-v32';
 const ASSETS = [
   './',
   './index.html',

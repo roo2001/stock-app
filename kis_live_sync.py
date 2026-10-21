@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 kis_live_sync.py - 한국투자증권(KIS) OpenAPI ➔ 웹앱 실시간 시세 및 외인/기관 수급 통합 서버
-1. D:\[R]\[00.공부_하자]\[00.관심종목 실시간]\env.txt 설정 로드
+1. 005.관심종목/config/env.txt 설정 로드 (git 저장소 밖, 키 보호)
 2. watchlist.json 등록 종목의 KIS 실전 시세 자동 갱신
 3. 신규 종목 추가 시 KIS API 즉시 실측 조회 및 실시간 응답 (POST /api/stocks/fetch)
 4. 로컬 웹 서버(포트 8099) 내장: 브라우저에서 http://localhost:8099 로 접속 시 Mixed Content 보안 차단 없이 100% 무지연 실시간 시세 연동
@@ -22,8 +22,10 @@ if sys.platform == 'win32':
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_APP_DIR = os.path.join(BASE_DIR, 'web_app') if os.path.exists(os.path.join(BASE_DIR, 'web_app')) else BASE_DIR
 WATCHLIST_PATH = os.path.join(WEB_APP_DIR, 'watchlist.json')
-ENV_PATH = r'D:\[R]\[00.공부_하자]\[00.관심종목 실시간]\env.txt'
-TOKEN_PATH = r'D:\[R]\[00.공부_하자]\[00.관심종목 실시간]\.kis_token.json'
+# KIS 키/토큰은 git 저장소(web_app) 밖인 상위 폴더 config 에 보관 (GitHub 업로드 방지)
+CONFIG_DIR = os.path.join(os.path.dirname(BASE_DIR), 'config')
+ENV_PATH = os.path.join(CONFIG_DIR, 'env.txt')
+TOKEN_PATH = os.path.join(CONFIG_DIR, '.kis_token.json')
 
 PORT = 8099
 cached_stocks = []
