@@ -150,10 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSync = document.getElementById('btnSyncDevices');
   if (btnSync) btnSync.addEventListener('click', handleDeviceSync);
 
-  // 클라우드 복구 버튼 (깃허브 서버 원본 관심종목 안전 복구 및 병합)
-  const btnRestore = document.getElementById('btnRestoreCloud');
-  if (btnRestore) btnRestore.addEventListener('click', handleCloudRestore);
-
   // CSV 내보내기 버튼 (엑셀/구글시트 호환)
   const btnCsv = document.getElementById('btnExportCsv');
   if (btnCsv) btnCsv.addEventListener('click', exportToCsv);
@@ -162,15 +158,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMd = document.getElementById('btnExportMarkdown');
   if (btnMd) btnMd.addEventListener('click', exportToMarkdown);
 
-  // 수동 새로고침 버튼
+  // 수동 새로고침 버튼 (네이버 실시간 시세 즉시 반영)
   document.getElementById('btnManualRefresh').addEventListener('click', () => {
     updateLivePrices(true);
   });
 });
 
 // ==========================================
-// 1-B. 스마트폰 ↔ PC 원클릭 기기 동기화 엔진
+// 1-B. 스마트폰 ↔ PC 원클릭 순수 종목 동기화 엔진 (v28)
+// ※ [철칙]: 시세 데이터(현재가, 등락률, 외인/기관 수급)는 절대 동기화하지 않고,
+//            순수 종목 정보(이름, 코드, 추천일, 테마, 이유, 목표가)만 영구 동기화!
 // ==========================================
+
+// 순수 종목 메타데이터만 정제 (시세, 등락률, 외인/기관 수급은 동기화에서 100% 완전 배제!)
+function sanitizeStockForSync(item) {
+  if (!item || !item.name) return null;
+  return {
+    name: item.name,
+    code: item.code || getOfficialStockCode(item.name) || '000000',
+    date: item.date || new Date().toISOString().split('T')[0],
+    theme: item.theme || '관심종목',
+    sector: item.sector || '기타',
+    reason: item.reason || '',
+    target: item.target || '미제시',
+    support: item.support || '미제시'
+  };
+}
+
 checkUrlSync();
 
 function checkUrlSync() {
@@ -185,12 +199,17 @@ function checkUrlSync() {
       if (Array.isArray(incomingList) && incomingList.length > 0) {
         const currentList = getWatchlist();
         const itemMap = new Map();
-        // 새로 전송받은 종목 등록
-        incomingList.forEach(item => {
-          const key = `${item.date || ''}_${item.name}`;
-          itemMap.set(key, item);
+
+        // 1) 새로 전송받은 순수 종목 등록
+        incomingList.forEach(rawItem => {
+          const item = sanitizeStockForSync(rawItem);
+          if (item) {
+            const key = `${item.date || ''}_${item.name}`;
+            itemMap.set(key, item);
+          }
         });
-        // 현재 기기에만 있는 기존 종목도 잃어버리지 않게 안전 보존
+
+        // 2) 현재 기기에만 있는 기존 종목도 잃어버리지 않게 안전 보존
         currentList.forEach(item => {
           const key = `${item.date || ''}_${item.name}`;
           if (!itemMap.has(key)) {
@@ -201,7 +220,13 @@ function checkUrlSync() {
         const merged = Array.from(itemMap.values());
         saveWatchlist(merged);
         window.history.replaceState({}, document.title, window.location.pathname);
-        alert(`🎉 [동기화 성공!]\n다른 기기에서 보낸 관심종목이 안전하게 합쳐졌습니다!\n(현재 총 ${merged.length}개 종목 감시 중)`);
+
+        // 3) [핵심] 병합 완료 즉시 네이버 증권 실시간 라이브 시세 덧입히기 실행!
+        setTimeout(() => {
+          updateLivePrices(false);
+        }, 300);
+
+        alert(`🎉 [기기 동기화 성공!]\n\n데스크탑/스마트폰의 관심종목이 안전하게 합쳐졌습니다!\n(현재 총 ${merged.length}개 종목 감시 중)\n\n※ 가격 및 등락률, 외인/기관 수치는 과거 시세가 동기화되지 않고 접속 시점의 실시간 라이브 시세로 자동 갱신됩니다.`);
         return;
       }
     } catch (err) {
@@ -225,7 +250,7 @@ function checkUrlSync() {
   }
 }
 
-// [📲 기기 동기화] 버튼 클릭: 현재 기기의 모든 종목을 담은 1초 전송 링크 생성
+// [📲 기기 동기화] 버튼 클릭: 순수 종목 메타데이터만 담은 1초 전송 링크 생성 (시세 배제!)
 function handleDeviceSync() {
   const list = getWatchlist();
   if (!list || list.length === 0) {
@@ -233,56 +258,16 @@ function handleDeviceSync() {
     return;
   }
 
-  const encoded = btoa(encodeURIComponent(JSON.stringify(list)));
+  // [v28 금융 원칙] 시세 데이터(현재가, 외인/기관 수급)는 완전 제거하고 순수 종목 정보만 정제 전송!
+  const sanitizedList = list.map(sanitizeStockForSync).filter(Boolean);
+  const encoded = btoa(encodeURIComponent(JSON.stringify(sanitizedList)));
   const syncUrl = `${window.location.origin}${window.location.pathname}?sync=${encoded}`;
 
   navigator.clipboard.writeText(syncUrl).then(() => {
-    alert(`📋 [기기 동기화 링크 복사 완료!]\n\n카카오톡 '나에게 보내기'로 이 링크를 전송한 뒤, 다른 기기(PC 또는 스마트폰)에서 링크를 터치하기만 하면 폰과 PC의 종목들이 100% 누락 없이 안전하게 합쳐집니다!`);
+    alert(`📋 [기기 동기화 링크 복사 완료!]\n\n카카오톡 '나에게 보내기'로 이 링크를 전송한 뒤, 다른 기기(스마트폰 또는 PC)에서 열기만 하면 데스크탑에서 올린 종목들이 100% 누락 없이 안전하게 합쳐집니다!\n\n※ [확인]: 가격, 등락률, 외국인/기관 수치는 과거 시세가 동기화되지 않으며, 스마트폰에서 링크를 여는 순간 네이버 증권의 최신 실시간 시장 시세로 자동 갱신됩니다.`);
   }).catch(() => {
     prompt('아래 링크를 복사하여 카카오톡 나에게 보내기로 전송하세요:', syncUrl);
   });
-}
-
-// [☁️ 클라우드 복구] 버튼 클릭: 깃허브 서버 원본(watchlist.json)을 가져와 현재 종목과 안전 병합
-async function handleCloudRestore() {
-  const confirmRestore = confirm('☁️ [클라우드 복구]\n\n서버의 마스터 관심종목 데이터(13개 종목)를 불러와 현재 내 기기의 목록과 안전하게 합치시겠습니까?\n(기존에 등록하신 종목은 삭제되지 않고 안전하게 보존됩니다.)');
-  if (!confirmRestore) return;
-
-  try {
-    const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
-    if (!resp.ok) {
-      throw new Error(`서버 응답 오류 (HTTP ${resp.status})`);
-    }
-    const cloudList = await resp.json();
-    if (!Array.isArray(cloudList) || cloudList.length === 0) {
-      alert('클라우드 서버에 등록된 종목 데이터가 없습니다.');
-      return;
-    }
-
-    const currentList = getWatchlist();
-    const itemMap = new Map();
-
-    // 1. 클라우드 마스터 원본 종목 등록
-    cloudList.forEach(item => {
-      const key = `${item.date || ''}_${item.name}`;
-      itemMap.set(key, item);
-    });
-
-    // 2. 현재 내 기기에 추가로 분석/등록해둔 종목도 잃어버리지 않게 안전 보존
-    currentList.forEach(item => {
-      const key = `${item.date || ''}_${item.name}`;
-      if (!itemMap.has(key)) {
-        itemMap.set(key, item);
-      }
-    });
-
-    const merged = Array.from(itemMap.values());
-    saveWatchlist(merged);
-    alert(`🎉 [클라우드 복구 완료!]\n\n서버의 마스터 종목(${cloudList.length}개)이 성공적으로 반영되었습니다.\n(현재 내 기기 총 관심종목: ${merged.length}개)`);
-  } catch (err) {
-    console.error('클라우드 복구 실패:', err);
-    alert(`클라우드 복구 중 오류가 발생했습니다: ${err.message}`);
-  }
 }
 
 // ==========================================
@@ -1960,9 +1945,10 @@ function getWatchlist() {
 function addStockToStorage(item) {
   const list = getWatchlist();
   if (!item.date) item.date = new Date().toISOString().split('T')[0];
+  item.addedAt = Date.now(); // [v28] 추가 종목 최상단 배치를 위한 타임스탬프
   // 같은 일자에 동일 종목이 있으면 업데이트, 서로 다른 일자의 동일 종목은 날짜별 추천 이력으로 보존
   const filtered = list.filter(s => !(s.name === item.name && s.date === item.date));
-  filtered.unshift(item);
+  filtered.unshift(item); // 맨 앞에 즉시 추가
   saveWatchlist(filtered);
 }
 
@@ -1997,12 +1983,21 @@ function renderExcelWatchlist() {
     return;
   }
 
-  const sortMode = document.getElementById('sortOrderSelect')?.value || 'dateDesc';
+  const sortMode = document.getElementById('sortOrderSelect')?.value || 'addedDesc';
 
   // 1. 선택된 정렬 모드에 따른 그룹화(Grouping)
   const groups = {};
 
-  if (sortMode === 'themeAsc') {
+  if (sortMode === 'addedDesc') {
+    // 🆕 최신 추가순: 날짜와 상관없이 최근에 추가된 종목을 맨 위(최상단)로 정렬!
+    const sorted = [...list].sort((a, b) => {
+      const tA = a.addedAt || 0;
+      const tB = b.addedAt || 0;
+      if (tB !== tA) return tB - tA;
+      return 0; // 원래 unshift 순서 유지
+    });
+    groups['전체'] = sorted;
+  } else if (sortMode === 'themeAsc') {
     // 🏷️ 테마별 그룹화
     list.forEach(item => {
       const key = item.theme || '기타 테마';
@@ -2042,8 +2037,14 @@ function renderExcelWatchlist() {
   groupKeys.forEach(groupKey => {
     const items = groups[groupKey];
 
-    // 블록 내부 종목 2차 정렬: 테마/업종별일 때는 최신 날짜순 -> 가나다순 정렬
-    if (sortMode === 'themeAsc' || sortMode === 'sectorAsc') {
+    // 블록 내부 종목 2차 정렬: 최신 추가순(addedAt 내림차순) 우선 적용!
+    if (sortMode === 'dateDesc' || sortMode === 'dateAsc') {
+      items.sort((a, b) => {
+        const tA = a.addedAt || 0;
+        const tB = b.addedAt || 0;
+        return tB - tA;
+      });
+    } else if (sortMode === 'themeAsc' || sortMode === 'sectorAsc') {
       items.sort((a, b) => {
         const dateCmp = (b.date || '').localeCompare(a.date || '');
         if (dateCmp !== 0) return dateCmp;
@@ -2056,7 +2057,9 @@ function renderExcelWatchlist() {
 
     // 헤더 라벨 구성
     let headerTitle = '';
-    if (sortMode === 'themeAsc') {
+    if (sortMode === 'addedDesc') {
+      headerTitle = `🆕 최근 추가된 관심종목 (최신순)`;
+    } else if (sortMode === 'themeAsc') {
       headerTitle = `🏷️ 테마: ${groupKey}`;
     } else if (sortMode === 'sectorAsc') {
       headerTitle = `🏭 업종: ${groupKey}`;
@@ -2353,41 +2356,22 @@ async function updateLivePrices(isManual = false) {
     // 로컬 브릿지 오프라인 시 조용히 2단계 진행
   }
 
-  // 2. 로컬 브릿지가 꺼져 있으면 서버 원본(watchlist.json) 실측 시세와 동기화
+  // 2. [v28 핵심 개편] 네이버 증권 모바일 실시간 API로 모든 관심종목의 최신 라이브 시장가 실시간 조회
+  // ※ [철칙]: 과거 고정 시세(watchlist.json) 덮어쓰기 완전 폐기!
+  //           과거 시세 동기화를 전면 차단하고, 오직 현재 시장의 라이브 현재가, 등락률, 거래대금만 동적으로 반영!
   if (!synced) {
+    source = '🟢 네이버 실시간 라이브';
     try {
-      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
-      if (resp.ok) {
-        const cloudList = await resp.json();
-        if (Array.isArray(cloudList) && cloudList.length > 0) {
-          const cloudMap = new Map();
-          cloudList.forEach(item => {
-            if (item.code) cloudMap.set(item.code, item);
-            if (item.name) cloudMap.set(item.name, item);
-          });
-
-          list.forEach(item => {
-            const match = cloudMap.get(item.code) || cloudMap.get(item.name);
-            if (match) {
-              item.price = match.price;
-              item.change = match.change;
-              item.rate = match.rate;
-              item.volume = match.volume;
-              item.tradeValue = match.tradeValue;
-              if (match.foreign) item.foreign = match.foreign;
-              if (match.foreignLive) item.foreignLive = match.foreignLive;
-              if (match.inst) item.inst = match.inst;
-              if (match.investorDate) item.investorDate = match.investorDate;
-              if (match.dayCandle) item.dayCandle = match.dayCandle;
-              updatedCount++;
-            }
-          });
-          source = '☁️ 공식 시세 동기화';
-          synced = true;
+      const fetchPromises = list.map(item => {
+        if (item.code && item.code !== '000000') {
+          return fetchLiveNaverStockPrice(item.code, item.name).catch(() => null);
         }
-      }
+        return Promise.resolve(null);
+      });
+      await Promise.allSettled(fetchPromises);
+      synced = true;
     } catch (err) {
-      console.warn('시세 동기화 fetch 실패:', err);
+      console.warn('네이버 실시간 시세 일괄 조회 경고:', err);
     }
   }
 
