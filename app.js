@@ -1811,31 +1811,37 @@ async function initWatchlist() {
     list = [];
   }
 
-  // [v29 핵심 개선] 서버의 마스터 25개 관심종목(watchlist.json)과 로컬 관심종목을 지능형 안전 병합!
-  // (로컬에 16개만 있더라도 서버의 25개 종목이 누락 없이 100% 안전하게 합쳐져 전원 복구됨!)
+  // [v31 핵심 정비] 로컬에 남아있던 과거 중복 항목(32개)을 일괄 청소하고, 공식 마스터 25개 종목으로 완벽 자동 동기화!
   try {
     const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
     if (resp.ok) {
       const serverList = await resp.json();
       if (Array.isArray(serverList) && serverList.length > 0) {
-        const itemMap = new Map();
-        // 1) 서버 마스터 종목(25개) 등록
-        serverList.forEach(item => {
-          const key = `${item.date || ''}_${item.name}`;
-          itemMap.set(key, item);
-        });
-        // 2) 로컬 기기에만 있는 종목 및 사용자 수정치 안전 보존
-        list.forEach(item => {
-          const key = `${item.date || ''}_${item.name}`;
-          if (!itemMap.has(key)) {
+        const CLEAN_KEY = 'stock_shorts_v31_cleaned';
+        const isCleaned = localStorage.getItem(CLEAN_KEY) === 'true';
+
+        if (!isCleaned || list.length > serverList.length) {
+          // 과거 중복 데이터(32개 등)가 있으면 공식 25개 마스터로 깨끗하게 단일화!
+          list = serverList;
+          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+          localStorage.setItem(CLEAN_KEY, 'true');
+        } else {
+          // 이미 정비된 기기에서는 종목별 시세/수정치만 안전 병합
+          const itemMap = new Map();
+          serverList.forEach(item => {
+            const key = `${item.date || ''}_${item.name}`;
             itemMap.set(key, item);
-          } else {
-            const base = itemMap.get(key);
-            itemMap.set(key, { ...base, ...item });
-          }
-        });
-        list = Array.from(itemMap.values());
-        localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+          });
+          list.forEach(item => {
+            const key = `${item.date || ''}_${item.name}`;
+            if (itemMap.has(key)) {
+              const base = itemMap.get(key);
+              itemMap.set(key, { ...base, ...item });
+            }
+          });
+          list = Array.from(itemMap.values());
+          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+        }
       }
     }
   } catch (e) {
@@ -2324,6 +2330,21 @@ async function updateLivePrices(isManual = false) {
   let updatedCount = 0;
   let source = '시세 동기화';
 
+  // 0. [v31] 수동 새로고침 클릭 시 서버의 공식 25개 마스터로 즉시 완전 동기화 (32개 중복 잔재 일괄 제거)
+  if (isManual) {
+    try {
+      const resp = await fetch(`./watchlist.json?t=${Date.now()}`);
+      if (resp.ok) {
+        const serverList = await resp.json();
+        if (Array.isArray(serverList) && serverList.length > 0) {
+          list = serverList;
+          localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+          localStorage.setItem('stock_shorts_v31_cleaned', 'true');
+        }
+      }
+    } catch (e) {}
+  }
+
   // 1. 로컬 KIS 실전 API 브릿지(kis_live_sync.py) 연결 시도
   let synced = false;
   try {
@@ -2427,7 +2448,9 @@ async function updateLivePrices(isManual = false) {
 function initPWA() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        reg.update().catch(() => {});
+      }).catch(err => {
         console.log('Service Worker 등록 실패:', err);
       });
     });
