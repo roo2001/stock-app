@@ -2869,6 +2869,8 @@ window.exportToMarkdown = exportToMarkdown;
 // ==========================================
 let flowRankingData = null;
 let currentFlowCategory = 'bothBuyTop10';
+let currentFlowSortKey = 'default'; // 'default', 'price', 'rate', 'foreign', 'inst', 'total', 'streak', 'name', 'market'
+let currentFlowSortOrder = 'desc'; // 'desc' | 'asc'
 
 function initFlowRankings() {
   // 서브 탭 버튼 이벤트
@@ -2877,6 +2879,7 @@ function initFlowRankings() {
       document.querySelectorAll('.flow-tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentFlowCategory = btn.getAttribute('data-flow') || 'bothBuyTop10';
+      // 탭 전환 시 정렬 기준은 유지하되 새 카테고리 데이터로 렌더링
       renderFlowRankingsTable();
     });
   });
@@ -2888,6 +2891,86 @@ function initFlowRankings() {
       loadAndRenderFlowRankings(true);
     });
   }
+}
+
+function handleFlowHeaderSort(colKey) {
+  if (currentFlowSortKey === colKey) {
+    if (currentFlowSortOrder === 'desc') {
+      currentFlowSortOrder = 'asc';
+    } else {
+      // 3번째 클릭 시 기본 순위로 복원
+      currentFlowSortKey = 'default';
+      currentFlowSortOrder = 'desc';
+    }
+  } else {
+    currentFlowSortKey = colKey;
+    currentFlowSortOrder = (colKey === 'name' || colKey === 'market') ? 'asc' : 'desc';
+  }
+  renderFlowRankingsTable();
+}
+
+function onFlowSortSelectChange(val) {
+  currentFlowSortKey = val;
+  currentFlowSortOrder = (val === 'name' || val === 'market') ? 'asc' : 'desc';
+  renderFlowRankingsTable();
+}
+
+function resetFlowSort() {
+  currentFlowSortKey = 'default';
+  currentFlowSortOrder = 'desc';
+  renderFlowRankingsTable();
+}
+
+function getSortIndicator(colKey) {
+  if (currentFlowSortKey !== colKey) {
+    return '<span class="sort-icon inactive">↕</span>';
+  }
+  return currentFlowSortOrder === 'desc'
+    ? '<span class="sort-icon active-desc">▼</span>'
+    : '<span class="sort-icon active-asc">▲</span>';
+}
+
+function sortFlowList(rawList, sortKey, sortOrder) {
+  if (!rawList || rawList.length === 0) return [];
+  const copy = rawList.map((item, originalIdx) => ({ ...item, _originalRank: originalIdx + 1 }));
+  if (sortKey === 'default') {
+    return copy;
+  }
+
+  copy.sort((a, b) => {
+    let vA = 0, vB = 0;
+    if (sortKey === 'price') {
+      vA = Number(a.price) || 0;
+      vB = Number(b.price) || 0;
+    } else if (sortKey === 'rate') {
+      vA = Number(a.rate) || 0;
+      vB = Number(b.rate) || 0;
+    } else if (sortKey === 'foreign') {
+      vA = Number(a.foreignRaw) || 0;
+      vB = Number(b.foreignRaw) || 0;
+    } else if (sortKey === 'inst') {
+      vA = Number(a.instRaw) || 0;
+      vB = Number(b.instRaw) || 0;
+    } else if (sortKey === 'total') {
+      vA = Number(a.totalNetRaw) || ((Number(a.foreignRaw) || 0) + (Number(a.instRaw) || 0));
+      vB = Number(b.totalNetRaw) || ((Number(b.foreignRaw) || 0) + (Number(b.instRaw) || 0));
+    } else if (sortKey === 'streak') {
+      vA = Math.max((a.bothStreak || 0) * 10, (a.foreignStreak || 0), (a.instStreak || 0));
+      vB = Math.max((b.bothStreak || 0) * 10, (b.foreignStreak || 0), (b.instStreak || 0));
+    } else if (sortKey === 'name') {
+      return sortOrder === 'asc'
+        ? (a.name || '').localeCompare(b.name || '', 'ko')
+        : (b.name || '').localeCompare(a.name || '', 'ko');
+    } else if (sortKey === 'market') {
+      return sortOrder === 'asc'
+        ? (a.market || '').localeCompare(b.market || '')
+        : (b.market || '').localeCompare(a.market || '');
+    }
+
+    return sortOrder === 'asc' ? vA - vB : vB - vA;
+  });
+
+  return copy;
 }
 
 async function loadAndRenderFlowRankings(isManual = false) {
@@ -2940,11 +3023,14 @@ function renderFlowRankingsTable() {
     return;
   }
 
-  const list = flowRankingData.rankings[currentFlowCategory] || [];
-  if (list.length === 0) {
+  const rawList = flowRankingData.rankings[currentFlowCategory] || [];
+  if (rawList.length === 0) {
     container.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">해당 조건에 부합하는 수급 순위 종목이 없습니다.</div>';
     return;
   }
+
+  // 선택된 정렬 기준에 따라 리스트 정렬
+  const list = sortFlowList(rawList, currentFlowSortKey, currentFlowSortOrder);
 
   const watchlist = getWatchlist();
   const watchlistCodes = new Set(watchlist.map(item => item.code).filter(c => c && c !== '000000'));
@@ -2957,25 +3043,75 @@ function renderFlowRankingsTable() {
     'streakTop10': '⚡ 3일~5일 이상 연속 순매수 지속 TOP 10'
   };
 
+  const sortLabelMap = {
+    'default': '기본 순위순',
+    'total': '합산 수급순',
+    'foreign': '외인 순매수순',
+    'inst': '기관 순매수순',
+    'streak': '연속 매수일수순',
+    'rate': '등락률순',
+    'price': '현재가순',
+    'name': '종목명 가나다순',
+    'market': '시장순'
+  };
+
   let html = `
-    <div style="padding:10px 14px; background:rgba(30,41,59,0.7); border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:0.88rem; font-weight:800; color:#38bdf8;">${categoryTitles[currentFlowCategory] || '실시간 수급 TOP 10'}</span>
-      <span style="font-size:0.75rem; color:#94a3b8;">(1위~${list.length}위 실시간 집계)</span>
+    <!-- 테이블 상단 정렬 컨트롤 바 -->
+    <div class="flow-table-toolbar" style="padding:10px 14px; background:rgba(30,41,59,0.85); border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:0.90rem; font-weight:800; color:#38bdf8;">${categoryTitles[currentFlowCategory] || '실시간 수급 TOP 10'}</span>
+        <span style="font-size:0.75rem; color:#94a3b8;">(1위~${rawList.length}위)</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-size:0.76rem; color:#cbd5e1; font-weight:600;">⚡ 정렬 기준:</span>
+        <select id="flowSortSelect" style="background:#0f172a; border:1px solid #3b82f6; color:#f8fafc; padding:4px 10px; border-radius:6px; font-size:0.78rem; font-weight:700; cursor:pointer;" onchange="onFlowSortSelectChange(this.value)">
+          <option value="default" ${currentFlowSortKey==='default'?'selected':''}>🏆 기본 순위순 (TOP 10)</option>
+          <option value="total" ${currentFlowSortKey==='total'?'selected':''}>🔥 합산 수급 많은순 (외+기)</option>
+          <option value="foreign" ${currentFlowSortKey==='foreign'?'selected':''}>🟢 외국인 순매수 많은순</option>
+          <option value="inst" ${currentFlowSortKey==='inst'?'selected':''}>🔵 기관 순매수 많은순</option>
+          <option value="streak" ${currentFlowSortKey==='streak'?'selected':''}>⚡ 연속 순매수일수 높은순</option>
+          <option value="rate" ${currentFlowSortKey==='rate'?'selected':''}>📈 등락률 높은순 (상승률)</option>
+          <option value="price" ${currentFlowSortKey==='price'?'selected':''}>💰 현재가 높은순</option>
+          <option value="name" ${currentFlowSortKey==='name'?'selected':''}>🔤 종목명 가나다순</option>
+        </select>
+        ${currentFlowSortKey !== 'default' ? `<button class="btn-sub" style="padding:4px 8px; font-size:0.75rem; color:#fde047; font-weight:700;" onclick="resetFlowSort()">↺ 원래 순위</button>` : ''}
+      </div>
     </div>
+
+    <!-- 1~10위 테이블 -->
     <div style="overflow-x:auto;">
-      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:850px;">
+      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:860px;">
         <thead>
           <tr>
-            <th style="width:58px; text-align:center;">순위</th>
-            <th style="width:80px; text-align:center;">시장</th>
-            <th style="width:160px; text-align:left;">종목명 (코드)</th>
-            <th style="width:100px; text-align:right;">현재가</th>
-            <th style="width:85px; text-align:right;">등락률</th>
-            <th style="width:110px; text-align:right;">외국인 순매수</th>
-            <th style="width:110px; text-align:right;">기관 순매수</th>
-            <th style="width:120px; text-align:right;">합산 수급</th>
-            <th style="width:120px; text-align:center;">연속 매수</th>
-            <th style="width:110px; text-align:center;">관심종목</th>
+            <th style="width:62px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('default')" title="기본 순위순 정렬">
+              순위 ${getSortIndicator('default')}
+            </th>
+            <th style="width:78px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('market')" title="시장별 정렬 (KOSPI/KOSDAQ)">
+              시장 ${getSortIndicator('market')}
+            </th>
+            <th style="width:160px; text-align:left; cursor:pointer;" onclick="handleFlowHeaderSort('name')" title="종목명 가나다순 정렬">
+              종목명 (코드) ${getSortIndicator('name')}
+            </th>
+            <th style="width:105px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('price')" title="현재가 기준 정렬">
+              현재가 ${getSortIndicator('price')}
+            </th>
+            <th style="width:85px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('rate')" title="등락률 기준 정렬">
+              등락률 ${getSortIndicator('rate')}
+            </th>
+            <th style="width:115px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('foreign')" title="외국인 순매수량 기준 정렬">
+              외국인 순매수 ${getSortIndicator('foreign')}
+            </th>
+            <th style="width:115px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('inst')" title="기관 순매수량 기준 정렬">
+              기관 순매수 ${getSortIndicator('inst')}
+            </th>
+            <th style="width:125px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('total')" title="외인+기관 합산 순매수량 기준 정렬">
+              합산 수급 ${getSortIndicator('total')}
+            </th>
+            <th style="width:120px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('streak')" title="연속 매수일수 기준 정렬">
+              연속 매수 ${getSortIndicator('streak')}
+            </th>
+            <th style="width:100px; text-align:center;">관심종목</th>
           </tr>
         </thead>
         <tbody>
@@ -3116,4 +3252,7 @@ function addFlowStockToWatchlist(code, name, price, rate, market) {
 window.openChartByName = openChartByName;
 window.addFlowStockToWatchlist = addFlowStockToWatchlist;
 window.loadAndRenderFlowRankings = loadAndRenderFlowRankings;
+window.handleFlowHeaderSort = handleFlowHeaderSort;
+window.onFlowSortSelectChange = onFlowSortSelectChange;
+window.resetFlowSort = resetFlowSort;
 
