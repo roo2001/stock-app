@@ -2853,6 +2853,13 @@ function exportToMarkdown() {
     md += '\n';
   });
 
+  navigator.clipboard.writeText(md).then(() => {
+    alert('📋 [마크다운 매매일지 복사 완료!]\n\n선택하신 정렬 방식대로 옵시디언, 노션, 카카오톡에 바로 붙여넣기(Ctrl+V)하세요!');
+  }).catch(err => {
+    alert('클립보드 복사 권한이 필요합니다: ' + err);
+  });
+}
+
 // 전역 바인딩
 window.exportToCsv = exportToCsv;
 window.exportToMarkdown = exportToMarkdown;
