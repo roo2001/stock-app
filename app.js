@@ -3081,7 +3081,7 @@ function renderFlowRankingsTable() {
 
     <!-- 1~10위 테이블 -->
     <div style="overflow-x:auto;">
-      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:860px;">
+      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:920px;">
         <thead>
           <tr>
             <th style="width:62px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('default')" title="기본 순위순 정렬">
@@ -3108,7 +3108,7 @@ function renderFlowRankingsTable() {
             <th style="width:125px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('total')" title="외인+기관 합산 순매수량 기준 정렬">
               합산 수급 ${getSortIndicator('total')}
             </th>
-            <th style="width:120px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('streak')" title="연속 매수일수 기준 정렬">
+            <th style="width:145px; min-width:140px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('streak')" title="연속 매수일수 기준 정렬">
               연속 매수 ${getSortIndicator('streak')}
             </th>
             <th style="width:100px; text-align:center;">관심종목</th>
@@ -3180,7 +3180,7 @@ function renderFlowRankingsTable() {
         <td style="text-align:right; font-weight:700; color:${fColor};">${stock.foreignFormatted || formatStockQty(fRaw)}</td>
         <td style="text-align:right; font-weight:700; color:${iColor};">${stock.instFormatted || formatStockQty(iRaw)}</td>
         <td style="text-align:right; font-weight:800; color:${tColor}; background:rgba(255,255,255,0.02);">${stock.totalFormatted || formatStockQty(tRaw)}</td>
-        <td style="text-align:center;">${streakBadges.join(' ')}</td>
+        <td style="text-align:center; white-space:nowrap; padding:8px 8px;">${streakBadges.join(' ')}</td>
         <td style="text-align:center;">${actionBtn}</td>
       </tr>
     `;
