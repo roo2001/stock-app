@@ -3541,7 +3541,11 @@ function renderRecommendations() {
 
   let html = '';
   items.forEach(it => {
-    const isAdded = watchlistCodes.has(it.itemCode) || watchlistNames.has(it.itemName);
+    const sName = it.itemName || it.name || '';
+    const sCode = it.itemCode || it.code || '';
+    const sBroker = it.brokerName || it.broker || '증권사';
+    const sReason = it.recommendReason || it.reason || '';
+    const isAdded = watchlistCodes.has(sCode) || watchlistNames.has(sName);
     const isBroker = it.cardCategory === 'broker';
 
     if (isBroker) {
@@ -3550,19 +3554,19 @@ function renderRecommendations() {
       const pdfBtn = it.pdfUrl ? `<a href="${it.pdfUrl}" target="_blank" rel="noopener noreferrer" class="btn-sub" style="padding:6px 10px; font-size:0.75rem; text-decoration:none;" title="증권사 공식 애널리스트 PDF 원본 보기">📄 원본PDF</a>` : '';
       const addBtn = isAdded
         ? `<button class="btn-flow-added" disabled style="padding:6px 12px; font-size:0.75rem;">✅ 담김</button>`
-        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}', ${it.goalPrice || 0}, '${(it.recommendReason || '').replace(/'/g, "\\'")}', '${it.brokerName || ''}', 'broker')">➕ 담기</button>`;
+        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${sCode}', '${sName.replace(/'/g, "\\'")}', ${it.goalPrice || 0}, '${sReason.replace(/'/g, "\\'")}', '${sBroker}', 'broker')">➕ 담기</button>`;
 
       html += `
         <div class="rec-card rec-card-broker">
           <div class="rec-card-header">
             <div>
               <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-                <span class="rec-badge-broker">🏢 ${it.brokerName} 리서치</span>
+                <span class="rec-badge-broker">🏢 ${sBroker} 리서치</span>
                 <span style="font-size:0.7rem; color:#64748b; font-family:monospace;">${it.writeDate || ''}</span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
-                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">${it.itemName}</strong>
-                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${it.itemCode}</span>
+                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${sCode}', '${sName.replace(/'/g, "\\'")}')">${sName}</strong>
+                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${sCode}</span>
                 <span class="badge" style="background:rgba(37,99,235,0.2); color:#93c5fd; font-size:0.7rem; padding:1px 6px;">${it.opinion || 'Buy'}</span>
               </div>
             </div>
@@ -3583,14 +3587,14 @@ function renderRecommendations() {
             </div>
             <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
               <span style="color:#fde047; font-weight:700;">💡 추천 이유: </span>
-              ${it.summary || it.recommendReason || ''}
+              ${it.summary || sReason}
             </div>
           </div>
 
           <div class="rec-card-footer">
             ${addBtn}
             ${pdfBtn}
-            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
+            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${sCode}', '${sName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
           </div>
         </div>
       `;
@@ -3602,7 +3606,7 @@ function renderRecommendations() {
       const streakText = it.streakDesc || '외인·기관 동시 순매수';
       const addBtn = isAdded
         ? `<button class="btn-flow-added" disabled style="padding:6px 12px; font-size:0.75rem;">✅ 담김</button>`
-        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}', 0, '${(it.recommendReason || '').replace(/'/g, "\\'")}', '수급퀀트', 'quant')">➕ 담기</button>`;
+        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${sCode}', '${sName.replace(/'/g, "\\'")}', 0, '${sReason.replace(/'/g, "\\'")}', '수급퀀트', 'quant')">➕ 담기</button>`;
 
       html += `
         <div class="rec-card rec-card-quant">
@@ -3613,8 +3617,8 @@ function renderRecommendations() {
                 <span style="font-size:0.72rem; color:#10b981; font-weight:700;">🔥 ${streakText}</span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
-                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">${it.itemName}</strong>
-                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${it.itemCode}</span>
+                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${sCode}', '${sName.replace(/'/g, "\\'")}')">${sName}</strong>
+                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${sCode}</span>
                 <span style="font-size:0.8rem; font-weight:700; color:${rateColor};">${rateSign}${rateNum}%</span>
               </div>
             </div>
@@ -3633,13 +3637,13 @@ function renderRecommendations() {
             </div>
             <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
               <span style="color:#34d399; font-weight:700;">📊 수급 팩트: </span>
-              ${it.recommendReason || ''}
+              ${sReason}
             </div>
           </div>
 
           <div class="rec-card-footer">
             ${addBtn}
-            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
+            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${sCode}', '${sName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
           </div>
         </div>
       `;
