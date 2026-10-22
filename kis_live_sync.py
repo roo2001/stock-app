@@ -141,15 +141,45 @@ def fetch_single_stock_kis(code, env=None, token=None):
     r_inv = requests.get(f'{base_url}/uapi/domestic-stock/v1/quotations/inquire-investor', headers=inv_h, params=params, timeout=5)
     f_qty = '-'
     o_qty = '-'
+    f_raw = 0
+    i_raw = 0
+    f_streak = 0
+    i_streak = 0
+    both_streak = 0
     inv_date = ''
     if r_inv.status_code == 200:
         inv_rows = r_inv.json().get('output', [])
-        for row in inv_rows:
-            if row.get('frgn_ntby_qty') and row.get('orgn_ntby_qty'):
-                f_qty = fmt_qty(row.get('frgn_ntby_qty'))
-                o_qty = fmt_qty(row.get('orgn_ntby_qty'))
-                inv_date = row.get('stck_bsop_date')
-                break
+        if inv_rows:
+            first = inv_rows[0]
+            f_qty = fmt_qty(first.get('frgn_ntby_qty'))
+            o_qty = fmt_qty(first.get('orgn_ntby_qty'))
+            inv_date = first.get('stck_bsop_date')
+            try: f_raw = int(first.get('frgn_ntby_qty', 0))
+            except: f_raw = 0
+            try: i_raw = int(first.get('orgn_ntby_qty', 0))
+            except: i_raw = 0
+
+            # streak calculation
+            for row in inv_rows:
+                try: f_v = int(row.get('frgn_ntby_qty', 0))
+                except: f_v = 0
+                if f_v > 0: f_streak += 1
+                else: break
+
+            for row in inv_rows:
+                try: i_v = int(row.get('orgn_ntby_qty', 0))
+                except: i_v = 0
+                if i_v > 0: i_streak += 1
+                else: break
+
+            for row in inv_rows:
+                try:
+                    f_v = int(row.get('frgn_ntby_qty', 0))
+                    i_v = int(row.get('orgn_ntby_qty', 0))
+                except:
+                    f_v, i_v = 0, 0
+                if f_v > 0 and i_v > 0: both_streak += 1
+                else: break
 
     return {
         'code': code,
@@ -165,6 +195,12 @@ def fetch_single_stock_kis(code, env=None, token=None):
         'foreign': f_qty,
         'foreignLive': fmt_qty(frgn_live) if frgn_live else None,
         'inst': o_qty,
+        'foreignRaw': f_raw,
+        'instRaw': i_raw,
+        'foreignStreak': f_streak,
+        'instStreak': i_streak,
+        'bothStreak': both_streak,
+        'isBothBuy': (f_raw > 0 and i_raw > 0),
         'investorDate': inv_date
     }
 

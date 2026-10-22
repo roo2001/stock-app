@@ -167,6 +167,51 @@
         </div>
       </div>
 
+      <!-- 👑 오늘의 수급 챔피언 TOP 3 하이라이트 배너 -->
+      <div id="investorChampionBanner" class="champion-banner">
+        <div class="champion-card champion-both">
+          <div class="champ-badge">🔥 오늘 쌍끌이 1위</div>
+          <div class="champ-info">
+            <span class="champ-name" id="topBothName">-</span>
+            <span class="champ-val" id="topBothVal">-</span>
+          </div>
+          <div class="champ-sub" id="topBothSub">외인+기관 동시 대량 순매집</div>
+        </div>
+        <div class="champion-card champion-foreign">
+          <div class="champ-badge">🟢 오늘 외인 매수 1위</div>
+          <div class="champ-info">
+            <span class="champ-name" id="topForeignName">-</span>
+            <span class="champ-val" id="topForeignVal">-</span>
+          </div>
+          <div class="champ-sub" id="topForeignSub">외국인 자금 집중 유입</div>
+        </div>
+        <div class="champion-card champion-inst">
+          <div class="champ-badge">🔵 오늘 기관 매수 1위</div>
+          <div class="champ-info">
+            <span class="champ-name" id="topInstName">-</span>
+            <span class="champ-val" id="topInstVal">-</span>
+          </div>
+          <div class="champ-sub" id="topInstSub">기관 핵심 수급 대장주</div>
+        </div>
+      </div>
+
+      <!-- 🎯 외국인 / 기관 수급 & 연속 순매수 스마트 필터 바 -->
+      <div class="investor-filter-bar">
+        <div class="filter-chip-group">
+          <span class="filter-label">수급 분류:</span>
+          <button class="filter-chip active" data-flow="all">전체</button>
+          <button class="filter-chip chip-both" data-flow="both">🔥 쌍끌이(외+기 동시매수)</button>
+          <button class="filter-chip chip-foreign" data-flow="foreign">🟢 외인 순매수</button>
+          <button class="filter-chip chip-inst" data-flow="inst">🔵 기관 순매수</button>
+        </div>
+        <div class="filter-chip-group">
+          <span class="filter-label">연속 일수:</span>
+          <button class="filter-streak-chip active" data-streak="0">전체</button>
+          <button class="filter-streak-chip" data-streak="3">🔥 3일 이상 연속</button>
+          <button class="filter-streak-chip" data-streak="5">⚡ 5일 이상 연속</button>
+        </div>
+      </div>
+
       <!-- 엑셀 양식 요일별 테이블 렌더링 컨테이너 -->
       <div id="excelWatchlistContainer" class="excel-table-wrapper">
         <!-- 자바스크립트로 엑셀 테이블 동적 렌더링 -->

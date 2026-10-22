@@ -3,6 +3,10 @@
 const STORAGE_KEY_API = 'stock_shorts_gemini_api_key';
 const STORAGE_KEY_WATCHLIST = 'stock_shorts_watchlist_items';
 
+// [v33 수급 스크리너] 외국인/기관 수급 & 연속 일수 필터 상태
+let currentInvestorFilter = 'all'; // 'all', 'both', 'foreign', 'inst'
+let currentStreakFilter = 0;       // 0(전체), 3(3일이상), 5(5일이상)
+
 // KRX 공식 3,944개 상장 종목 헬퍼 함수
 function getOfficialStockCode(name = '', fallbackCode = '000000') {
   const cleanName = String(name).trim();
@@ -144,6 +148,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // 정렬 셀렉터 변경
   document.getElementById('sortOrderSelect').addEventListener('change', () => {
     renderExcelWatchlist();
+  });
+
+  // 수급 분류 필터 칩 (v33 신설)
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentInvestorFilter = chip.getAttribute('data-flow') || 'all';
+      renderExcelWatchlist();
+    });
+  });
+
+  // 수급 연속 일수 필터 칩 (v33 신설)
+  document.querySelectorAll('.filter-streak-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.filter-streak-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentStreakFilter = Number(chip.getAttribute('data-streak') || 0);
+      renderExcelWatchlist();
+    });
   });
 
   // 기기 간 동기화 버튼 (스마트폰 ↔ PC 관심종목 원클릭 동기화)
@@ -528,29 +552,74 @@ function initFileUpload() {
             const capturePoints = [0.1, 0.3, 0.5, 0.7, 0.9].map(p => duration * p);
             const frames = [];
 
+            // 헬퍼: 캔버스가 완전한 검은 화면인지 검사
+            const isBlackFrame = (ctx, w, h) => {
+              try {
+                const sampleW = Math.min(w, 100);
+                const sampleH = Math.min(h, 100);
+                const imgData = ctx.getImageData(Math.floor((w - sampleW)/2), Math.floor((h - sampleH)/2), sampleW, sampleH).data;
+                let brightPixels = 0;
+                for (let i = 0; i < imgData.length; i += 16) {
+                  const r = imgData[i], g = imgData[i+1], b = imgData[i+2];
+                  if (r > 15 || g > 15 || b > 15) brightPixels++;
+                }
+                return brightPixels === 0;
+              } catch (e) {
+                return false;
+              }
+            };
+
             for (const pt of capturePoints) {
               await new Promise((resolve) => {
+                let resolved = false;
+                const safeResolve = () => { if (!resolved) { resolved = true; resolve(); } };
+                const timer = setTimeout(safeResolve, 3000); // 3초 안전 타임아웃
+
                 videoPreview.currentTime = pt;
-                videoPreview.onseeked = () => {
+
+                const onSeekedHandler = async () => {
                   try {
+                    // [핵심 픽스 1] 디코더 버퍼링 렌더링 대기 (150ms)
+                    await new Promise(r => setTimeout(r, 150));
+                    if ('requestVideoFrameCallback' in videoPreview) {
+                      await new Promise(r => {
+                        const cbTimer = setTimeout(r, 120);
+                        videoPreview.requestVideoFrameCallback(() => { clearTimeout(cbTimer); r(); });
+                      });
+                    }
+
                     const canvas = document.createElement('canvas');
                     canvas.width = Math.min(videoPreview.videoWidth || 640, 1280);
                     canvas.height = Math.min(videoPreview.videoHeight || 360, 720);
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
+
+                    // [핵심 픽스 2] 검은 화면 감지 시 살짝 재생 후 재캡처 (자가 치유)
+                    if (isBlackFrame(ctx, canvas.width, canvas.height)) {
+                      try {
+                        await videoPreview.play();
+                        await new Promise(r => setTimeout(r, 60));
+                        videoPreview.pause();
+                        ctx.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
+                      } catch (ePlay) {}
+                    }
+
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     frames.push(dataUrl.split(',')[1]);
                   } catch (e) {
                     console.warn('프레임 캡처 실패:', e);
                   }
-                  resolve();
+                  clearTimeout(timer);
+                  safeResolve();
                 };
+
+                videoPreview.addEventListener('seeked', onSeekedHandler, { once: true });
               });
             }
             currentUploadedVideoFrames = frames;
             if (frames.length > 0) currentUploadedBase64 = frames[0];
             isFileReading = false;
-            fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 5개 타임라인 프레임 캡처 완료)`;
+            fileInfoText.innerText = `선택된 파일: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB - 5개 타임라인 프레임 정밀 캡처 완료)`;
           } catch (err) {
             console.warn('대용량 비디오 타임라인 캡처 오류:', err);
             isFileReading = false;
@@ -2009,15 +2078,129 @@ function getWeekdayLabel(dateStr) {
   }
 }
 
+// [v33] 오늘의 수급 챔피언 TOP 3 계산 및 배너 업데이트
+function updateInvestorChampions(fullList) {
+  if (!fullList || fullList.length === 0) return { topBoth: null, topForeign: null, topInst: null };
+
+  const parseQty = (v, raw) => {
+    if (raw !== undefined && !isNaN(raw)) return Number(raw);
+    if (!v || v === '-') return -999999999;
+    let s = String(v).replace(/,/g, '').trim();
+    let mul = 1;
+    if (s.includes('만')) { mul = 10000; s = s.replace('만', ''); }
+    else if (s.includes('천')) { mul = 1000; s = s.replace('천', ''); }
+    return (Number(s) || 0) * mul;
+  };
+
+  let topBoth = null, maxBoth = 0;
+  let topForeign = null, maxForeign = 0;
+  let topInst = null, maxInst = 0;
+
+  fullList.forEach(item => {
+    const f = parseQty(item.foreign, item.foreignRaw);
+    const i = parseQty(item.inst, item.instRaw);
+
+    if (f > maxForeign && f > 0) {
+      maxForeign = f;
+      topForeign = item;
+    }
+    if (i > maxInst && i > 0) {
+      maxInst = i;
+      topInst = item;
+    }
+    if (f > 0 && i > 0 && (f + i) > maxBoth) {
+      maxBoth = f + i;
+      topBoth = item;
+    }
+  });
+
+  const setCard = (nameId, valId, item, valText, subId, subText) => {
+    const elN = document.getElementById(nameId);
+    const elV = document.getElementById(valId);
+    const elS = document.getElementById(subId);
+    if (elN && elV) {
+      if (item) {
+        elN.innerText = item.name;
+        elV.innerText = valText;
+        if (elS && subText) elS.innerText = subText;
+      } else {
+        elN.innerText = '-';
+        elV.innerText = '집계 중';
+      }
+    }
+  };
+
+  if (topBoth) {
+    setCard('topBothName', 'topBothVal', topBoth, `외 ${topBoth.foreign} / 기 ${topBoth.inst}`, 'topBothSub', `🔥 외인·기관 쌍끌이 강력 매집주`);
+  } else {
+    setCard('topBothName', 'topBothVal', null, '-', 'topBothSub', '외인+기관 동시 대량 순매집');
+  }
+
+  if (topForeign) {
+    setCard('topForeignName', 'topForeignVal', topForeign, `${topForeign.foreign}`, 'topForeignSub', `🟢 ${topForeign.name} 외인 집중 순매수`);
+  } else {
+    setCard('topForeignName', 'topForeignVal', null, '-', 'topForeignSub', '외국인 자금 집중 유입');
+  }
+
+  if (topInst) {
+    setCard('topInstName', 'topInstVal', topInst, `${topInst.inst}`, 'topInstSub', `🔵 ${topInst.name} 기관 핵심 매집주`);
+  } else {
+    setCard('topInstName', 'topInstVal', null, '-', 'topInstSub', '기관 핵심 수급 대장주');
+  }
+
+  return { topBoth, topForeign, topInst };
+}
+
 // 엑셀 스타일 요일별 실시간 금융 테이블 렌더링
 function renderExcelWatchlist() {
-  let list = getWatchlist();
-  document.getElementById('stockCount').innerText = list.length;
+  const fullList = getWatchlist();
+  document.getElementById('stockCount').innerText = fullList.length;
   const container = document.getElementById('excelWatchlistContainer');
   container.innerHTML = '';
 
-  if (list.length === 0) {
+  if (fullList.length === 0) {
     container.innerHTML = `<p style="text-align:center; color:#6b7280; padding:40px;">관심종목이 없습니다. 첫 번째 탭에서 쇼츠/틱톡 영상을 분석하여 추가하세요.</p>`;
+    return;
+  }
+
+  // 1. 수급 챔피언 TOP 3 배너 업데이트
+  const { topBoth, topForeign, topInst } = updateInvestorChampions(fullList);
+
+  // 2. 수급 분류 및 연속 일수 필터 적용
+  let list = [...fullList];
+  if (currentInvestorFilter !== 'all' || currentStreakFilter > 0) {
+    list = list.filter(item => {
+      const fNum = (item.foreignRaw !== undefined) ? item.foreignRaw : (String(item.foreign || '').includes('+') ? 1 : 0);
+      const iNum = (item.instRaw !== undefined) ? item.instRaw : (String(item.inst || '').includes('+') ? 1 : 0);
+      const isBoth = (item.isBothBuy) || (fNum > 0 && iNum > 0);
+
+      if (currentInvestorFilter === 'both' && !isBoth) return false;
+      if (currentInvestorFilter === 'foreign' && fNum <= 0) return false;
+      if (currentInvestorFilter === 'inst' && iNum <= 0) return false;
+
+      if (currentStreakFilter > 0) {
+        const fS = item.foreignStreak || 0;
+        const iS = item.instStreak || 0;
+        const bS = item.bothStreak || 0;
+        if (currentInvestorFilter === 'both') {
+          if (bS < currentStreakFilter && (fS < currentStreakFilter || iS < currentStreakFilter)) return false;
+        } else if (currentInvestorFilter === 'foreign') {
+          if (fS < currentStreakFilter) return false;
+        } else if (currentInvestorFilter === 'inst') {
+          if (iS < currentStreakFilter) return false;
+        } else {
+          if (fS < currentStreakFilter && iS < currentStreakFilter && bS < currentStreakFilter) return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  if (list.length === 0) {
+    container.innerHTML = `<div style="text-align:center; color:#94a3b8; padding:50px 20px;">
+      <p style="font-size:1.1rem; font-weight:700; color:#e2e8f0; margin-bottom:8px;">🎯 선택하신 수급 조건에 맞는 종목이 없습니다.</p>
+      <p style="font-size:0.85rem; color:#64748b;">수급 필터(전체) 또는 연속 일수를 재조정해 보세요.</p>
+    </div>`;
     return;
   }
 
@@ -2151,13 +2334,30 @@ function renderExcelWatchlist() {
         </div>
       ` : '';
 
+      // 1위 챔피언 배지
+      let champBadgeHtml = '';
+      if (topBoth && (stock.code === topBoth.code || stock.name === topBoth.name)) {
+        champBadgeHtml = `<span class="top-rank-badge" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff;">🔥쌍끌이1위</span>`;
+      } else if (topForeign && (stock.code === topForeign.code || stock.name === topForeign.name)) {
+        champBadgeHtml = `<span class="top-rank-badge" style="background:linear-gradient(135deg,#10b981,#059669); color:#fff;">🟢외인1위</span>`;
+      } else if (topInst && (stock.code === topInst.code || stock.name === topInst.name)) {
+        champBadgeHtml = `<span class="top-rank-badge" style="background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff;">🔵기관1위</span>`;
+      }
+
+      // 연속 매수 배지
+      const fStreakBadge = (stock.foreignStreak >= 2) ? `<span class="streak-badge streak-foreign" title="외국인 ${stock.foreignStreak}일 연속 순매수">${stock.foreignStreak}일↑</span>` : '';
+      const iStreakBadge = (stock.instStreak >= 2) ? `<span class="streak-badge streak-inst" title="기관 ${stock.instStreak}일 연속 순매수">${stock.instStreak}일↑</span>` : '';
+      const bothStreakBadge = (stock.bothStreak >= 2) ? `<span class="streak-badge streak-both" title="외인+기관 ${stock.bothStreak}일 연속 쌍끌이 매집">🔥쌍끌이${stock.bothStreak}일</span>` : '';
+
       tableHtml += `
         <tr>
           <td><span class="theme-tag">${stock.theme || '추천'}</span></td>
           <td>
             <div style="display:inline-flex; align-items:center; flex-wrap:wrap; gap:3px;">
+              ${champBadgeHtml}
               <span class="stock-name-cell" onclick="handleOpenChartModal('${stock.code}', '${stock.name}')" title="클릭 시 네이버 실시간 차트 & AI 분석 리포트 팝업">${stock.name}</span>
               <span class="stock-code-cell">${stock.code}</span>
+              ${bothStreakBadge}
               <a href="https://m.stock.naver.com/domestic/stock/${stock.code}/total" target="_blank" rel="noopener noreferrer" class="stock-naver-link" title="네이버 증권 새 탭 열기">↗</a>
               ${dateBadgeHtml}
             </div>
@@ -2172,11 +2372,17 @@ function renderExcelWatchlist() {
             ${renderHtsCandleSvg(stock)}
           </td>
           <td style="color:${String(stock.foreign).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">
-            <div>${stock.foreign || '-'}</div>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <span>${stock.foreign || '-'}</span>
+              ${fStreakBadge}
+            </div>
             ${stock.foreignLive ? `<span style="font-size:0.68rem; color:#facc15; font-weight:700; background:rgba(250,204,21,0.15); padding:1px 4px; border-radius:3px; display:inline-block; margin-top:2px;" title="장중 외국계 잠정 가집계">(장중:${stock.foreignLive})</span>` : ''}
           </td>
           <td style="color:${String(stock.inst).includes('+') ? '#f87171' : '#60a5fa'}; font-weight:600;">
-            <div>${stock.inst || '-'}</div>
+            <div style="display:flex; align-items:center; gap:2px;">
+              <span>${stock.inst || '-'}</span>
+              ${iStreakBadge}
+            </div>
             ${stock.investorDate ? `<span style="font-size:0.65rem; color:#94a3b8; display:block;" title="수급 확정 기준일">(${stock.investorDate.slice(4,6)}.${stock.investorDate.slice(6,8)})</span>` : ''}
           </td>
           <td style="text-align:center; white-space:nowrap;">
@@ -2370,6 +2576,12 @@ async function updateLivePrices(isManual = false) {
             if (match.foreign) item.foreign = match.foreign;
             if (match.foreignLive) item.foreignLive = match.foreignLive;
             if (match.inst) item.inst = match.inst;
+            if (match.foreignRaw !== undefined) item.foreignRaw = match.foreignRaw;
+            if (match.instRaw !== undefined) item.instRaw = match.instRaw;
+            if (match.foreignStreak !== undefined) item.foreignStreak = match.foreignStreak;
+            if (match.instStreak !== undefined) item.instStreak = match.instStreak;
+            if (match.bothStreak !== undefined) item.bothStreak = match.bothStreak;
+            if (match.isBothBuy !== undefined) item.isBothBuy = match.isBothBuy;
             if (match.investorDate) item.investorDate = match.investorDate;
             if (match.dayCandle) item.dayCandle = match.dayCandle;
             updatedCount++;
@@ -2401,6 +2613,12 @@ async function updateLivePrices(isManual = false) {
               if (sItem.tradeValue > 0) target.tradeValue = sItem.tradeValue;
               if (sItem.foreign && sItem.foreign !== '-') target.foreign = sItem.foreign;
               if (sItem.inst && sItem.inst !== '-') target.inst = sItem.inst;
+              if (sItem.foreignRaw !== undefined) target.foreignRaw = sItem.foreignRaw;
+              if (sItem.instRaw !== undefined) target.instRaw = sItem.instRaw;
+              if (sItem.foreignStreak !== undefined) target.foreignStreak = sItem.foreignStreak;
+              if (sItem.instStreak !== undefined) target.instStreak = sItem.instStreak;
+              if (sItem.bothStreak !== undefined) target.bothStreak = sItem.bothStreak;
+              if (sItem.isBothBuy !== undefined) target.isBothBuy = sItem.isBothBuy;
               const oprc = Number(target.open) || Number(target.price) || 0;
               const clpr = Number(target.price) || 0;
               const isUp = oprc > 0 ? (clpr >= oprc) : ((Number(target.rate) || 0) >= 0);
@@ -2418,12 +2636,33 @@ async function updateLivePrices(isManual = false) {
 
   // 3. 네이버 증권 모바일 API 개별 종목 직접 패치 보조 (신규 종목용)
   try {
-    const fetchPromises = list.filter(item => item.code && item.code !== '000000').map(item => {
-      return fetchLiveNaverStockPrice(item.code, item.name).then(res => {
-        if (res && res.price > 0) updatedCount++;
-      }).catch(() => null);
-    });
-    await Promise.allSettled(fetchPromises);
+    const unpricedItems = list.filter(item => item.code && item.code !== '000000' && (!item.price || item.price === 0));
+    if (unpricedItems.length > 0) {
+      const fetchPromises = unpricedItems.map(item => {
+        return fetchLiveNaverStockPrice(item.code, item.name).then(res => {
+          if (res) {
+            const p = Number(String(res.closePrice || res.nowPrice || 0).replace(/,/g, '')) || 0;
+            if (p > 0) {
+              item.price = p;
+              item.change = Number(String(res.compareToPreviousClosePrice || res.changePrice || 0).replace(/,/g, '')) || 0;
+              let r = Number(String(res.fluctuationsRatio || res.changeRate || 0).replace(/,/g, '')) || 0;
+              if (res.compareToPreviousPrice?.name?.includes('하락') && r > 0) r = -r;
+              item.rate = r;
+              const v = Number(String(res.accumulatedTradingVolume || 0).replace(/,/g, '')) || 0;
+              if (v > 0) item.volume = v;
+              let tv = Number(String(res.accumulatedTradingValue || 0).replace(/,/g, '')) || 0;
+              if (tv > 100000000) item.tradeValue = Math.round(tv / 100000000);
+              else if (res.accumulatedTradingValueHangeul) {
+                const m = String(res.accumulatedTradingValueHangeul).match(/(\d+)억/);
+                if (m) item.tradeValue = Number(m[1]);
+              }
+              updatedCount++;
+            }
+          }
+        }).catch(() => null);
+      });
+      await Promise.allSettled(fetchPromises);
+    }
   } catch (e) {}
 
   localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
