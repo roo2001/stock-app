@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=38">
+  <link rel="stylesheet" href="style.css?v=39">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -35,6 +35,7 @@
     <button class="tab-btn active" data-tab="tabShorts">🎬 쇼츠·틱톡 요약</button>
     <button class="tab-btn" data-tab="tabWatchlist">📊 내 관심종목 (<span id="stockCount">0</span>)</button>
     <button class="tab-btn" data-tab="tabInvestorFlow">🔥 실시간 수급 랭킹 (TOP 10)</button>
+    <button class="tab-btn" data-tab="tabRecommendations">🎯 오늘의 추천 & 리서치</button>
   </nav>
 
   <!-- 컨텐츠 영역 -->
@@ -155,10 +156,13 @@
           <label for="sortOrderSelect">정렬:</label>
           <select id="sortOrderSelect">
             <option value="dateDesc" selected>📅 최신 요일순</option>
-            <option value="dateAsc">📅 과거 요일순</option>
+            <option value="rateDesc">📈 실시간 상승률 높은순 ▲</option>
+            <option value="rateAsc">📉 실시간 하락률 큰순 ▼</option>
+            <option value="volumeDesc">📊 거래량 많은순 ▲</option>
+            <option value="nameAsc">🔤 가나다순</option>
             <option value="themeAsc">🏷️ 테마별</option>
             <option value="sectorAsc">🏭 업종별</option>
-            <option value="nameAsc">🔤 가나다순</option>
+            <option value="dateAsc">📅 과거 요일순</option>
           </select>
           <button id="btnCloudSync" class="btn-primary-small" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); font-weight: 700;" title="GitHub 및 원격 클라우드 실시간 양방향 동기화">☁️ 클라우드 동기화</button>
           <button id="btnSyncDevices" class="btn-sub" title="스마트폰 ↔ PC 관심종목 원클릭 동기화 (기기 간 전송)">📲 기기 동기화</button>
@@ -254,6 +258,62 @@
       <!-- 랭킹 테이블 컨테이너 -->
       <div id="flowRankingTableContainer" class="excel-table-wrapper">
         <!-- 자바스크립트로 1~10위 렌더링 -->
+      </div>
+    </section>
+
+    <!-- 4. 오늘의 추천 & 리서치 탭 (v39 무할루시네이션 추천 시스템) -->
+    <section id="tabRecommendations" class="tab-pane">
+      <div class="card" style="margin-bottom:12px; background:linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98)); border:1px solid rgba(59,130,246,0.3); box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h2 style="font-size:1.15rem; font-weight:800; margin:0; display:flex; align-items:center; gap:8px; color:#f8fafc;">
+              <span>🎯 오늘의 추천 종목 & 제도권 리서치</span>
+              <span class="badge" style="background:#2563eb; color:#fff; font-size:0.7rem; padding:2px 8px; border-radius:12px;">100% 팩트 보증</span>
+            </h2>
+            <p style="font-size:0.8rem; color:#94a3b8; margin-top:4px; margin-bottom:0;">
+              <b>무(無)할루시네이션 원칙:</b> 국내 30대 증권사 공인 실명 기업분석 리포트(목표가/상승여력) & 거래소 수급 퀀트 실측 데이터
+            </p>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button id="btnRefreshRecommend" class="btn-sub" style="padding:6px 12px; font-size:0.8rem; font-weight:700;">🔄 추천 갱신</button>
+          </div>
+        </div>
+
+        <!-- 실시간 상태 요약 & 정렬 컨트롤 바 -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding:8px 12px; background:rgba(15,23,42,0.6); border-radius:8px; border:1px solid rgba(255,255,255,0.06); font-size:0.78rem; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="color:#38bdf8; font-weight:700;">● 기준:</span>
+            <span id="recommendUpdateTime" style="color:#cbd5e1;">실시간</span>
+            <span style="color:#64748b; margin:0 4px;">|</span>
+            <span id="recommendCountInfo" style="color:#94a3b8;">증권사 12종목 / 퀀트수급 10종목</span>
+          </div>
+
+          <!-- 정렬 드롭다운 및 초기화 버튼 -->
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="color:#94a3b8; font-weight:600;">🔽 정렬:</span>
+            <select id="recommendSortSelect" style="background:#1e293b; color:#f8fafc; border:1px solid #475569; border-radius:6px; padding:4px 8px; font-size:0.78rem; font-weight:600; cursor:pointer;">
+              <option value="default">추천 우선순위 기본</option>
+              <option value="upsideDesc">상승여력(괴리율) 높은순 ▲</option>
+              <option value="goalPriceDesc">목표주가 높은순 ▲</option>
+              <option value="streakDesc">연속 매집일수 높은순 ▲</option>
+              <option value="totalNetDesc">순매수량 큰순 ▲</option>
+              <option value="nameAsc">종목명 (가나다순)</option>
+            </select>
+            <button id="btnResetRecommendSort" class="btn-sub" style="padding:4px 8px; font-size:0.75rem;" title="기본 정렬로 복원">↺ 원래 순위</button>
+          </div>
+        </div>
+
+        <!-- 3대 카테고리 필터 서브 탭 -->
+        <div class="recommend-category-nav" style="display:flex; gap:6px; margin-top:12px; overflow-x:auto; padding-bottom:4px;">
+          <button class="rec-tab-btn active" data-rec="all">🌟 전체 추천 보기</button>
+          <button class="rec-tab-btn" data-rec="broker">🏢 증권사 목표가 상향 픽</button>
+          <button class="rec-tab-btn" data-rec="quant">⚡ 거래소 퀀트 수급 챔피언</button>
+        </div>
+      </div>
+
+      <!-- 추천 종목 카드 그리드 / 테이블 컨테이너 -->
+      <div id="recommendCardsContainer" class="recommend-cards-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:14px;">
+        <!-- 자바스크립트로 추천 카드 렌더링 -->
       </div>
     </section>
 
@@ -357,49 +417,69 @@
         <button id="btnCloseChartModal" class="close-btn" title="닫기">&times;</button>
       </div>
       <div class="modal-body" style="padding-top:4px;">
-        <!-- 4대 핵심 매매 기준가 쿼드 보드 -->
-        <div class="chart-levels-grid">
-          <div class="level-box target-box">
-            <span class="level-box-title">🎯 목표가</span>
-            <span id="chartModalTarget" class="level-box-val">-</span>
+        <!-- 모달 내부 차트 vs 뉴스 서브 탭 네비게이션 -->
+        <div class="modal-sub-nav" style="display:flex; gap:8px; margin:6px 0 10px 0; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
+          <button id="btnModalSubChart" class="sub-tab-btn active" style="flex:1; padding:8px 12px; font-weight:700; font-size:0.85rem;">📈 실시간 차트 & 분석</button>
+          <button id="btnModalSubNews" class="sub-tab-btn" style="flex:1; padding:8px 12px; font-weight:700; font-size:0.85rem; background:rgba(30,41,59,0.6);">📰 최근 이슈 & 실시간 뉴스</button>
+        </div>
+
+        <!-- 섹션 A: 차트 및 분석 섹션 -->
+        <div id="modalChartSection">
+          <!-- 4대 핵심 매매 기준가 쿼드 보드 -->
+          <div class="chart-levels-grid">
+            <div class="level-box target-box">
+              <span class="level-box-title">🎯 목표가</span>
+              <span id="chartModalTarget" class="level-box-val">-</span>
+            </div>
+            <div class="level-box support-box">
+              <span class="level-box-title">🛡️ 지지선</span>
+              <span id="chartModalSupport" class="level-box-val">-</span>
+            </div>
+            <div class="level-box resistance-box">
+              <span class="level-box-title">🧱 저항선</span>
+              <span id="chartModalResistance" class="level-box-val">-</span>
+            </div>
+            <div class="level-box stop-box">
+              <span class="level-box-title">⚠️ 손절선</span>
+              <span id="chartModalStopLoss" class="level-box-val">-</span>
+            </div>
           </div>
-          <div class="level-box support-box">
-            <span class="level-box-title">🛡️ 지지선</span>
-            <span id="chartModalSupport" class="level-box-val">-</span>
+
+          <!-- 차트 기간 선택 탭 -->
+          <div class="chart-period-tabs">
+            <button class="chart-tab-btn active" data-period="candleDay">🕯️ 일봉</button>
+            <button class="chart-tab-btn" data-period="day">📈 당일실시간</button>
+            <button class="chart-tab-btn" data-period="candleWeek">📊 주봉</button>
+            <button class="chart-tab-btn" data-period="candleMonth">📅 월봉</button>
           </div>
-          <div class="level-box resistance-box">
-            <span class="level-box-title">🧱 저항선</span>
-            <span id="chartModalResistance" class="level-box-val">-</span>
+
+          <!-- 네이버 고화질 차트 이미지 컨테이너 -->
+          <div class="chart-img-container">
+            <div id="chartLoadingSpinner" class="chart-loading">네이버 증권 차트 불러오는 중...</div>
+            <img id="chartImg" src="" alt="네이버 증권 차트" class="naver-chart-img" />
           </div>
-          <div class="level-box stop-box">
-            <span class="level-box-title">⚠️ 손절선</span>
-            <span id="chartModalStopLoss" class="level-box-val">-</span>
+
+          <!-- AI 핵심 추천 이유 & 3줄 요약 통합 카드 -->
+          <div id="chartReasonBox" class="chart-reason-box">
+            <div style="font-size:0.75rem; color:#facc15; font-weight:700;">💡 AI 핵심 추천 이유:</div>
+            <p id="chartStockReason" style="font-size:0.83rem; color:#e2e8f0; margin-top:3px; line-height:1.4;">추천 이유</p>
+            
+            <div id="chartSummarySection" style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
+              <div style="font-size:0.75rem; color:#93c5fd; font-weight:700; margin-bottom:4px;">📑 AI 심층 3줄 요약 리포트:</div>
+              <ul id="chartModalSummaryList" style="margin:0; padding-left:14px; font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
+              </ul>
+            </div>
           </div>
         </div>
 
-        <!-- 차트 기간 선택 탭 -->
-        <div class="chart-period-tabs">
-          <button class="chart-tab-btn active" data-period="candleDay">🕯️ 일봉</button>
-          <button class="chart-tab-btn" data-period="day">📈 당일실시간</button>
-          <button class="chart-tab-btn" data-period="candleWeek">📊 주봉</button>
-          <button class="chart-tab-btn" data-period="candleMonth">📅 월봉</button>
-        </div>
-
-        <!-- 네이버 고화질 차트 이미지 컨테이너 -->
-        <div class="chart-img-container">
-          <div id="chartLoadingSpinner" class="chart-loading">네이버 증권 차트 불러오는 중...</div>
-          <img id="chartImg" src="" alt="네이버 증권 차트" class="naver-chart-img" />
-        </div>
-
-        <!-- AI 핵심 추천 이유 & 3줄 요약 통합 카드 -->
-        <div id="chartReasonBox" class="chart-reason-box">
-          <div style="font-size:0.75rem; color:#facc15; font-weight:700;">💡 AI 핵심 추천 이유:</div>
-          <p id="chartStockReason" style="font-size:0.83rem; color:#e2e8f0; margin-top:3px; line-height:1.4;">추천 이유</p>
-          
-          <div id="chartSummarySection" style="margin-top:8px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.1);">
-            <div style="font-size:0.75rem; color:#93c5fd; font-weight:700; margin-bottom:4px;">📑 AI 심층 3줄 요약 리포트:</div>
-            <ul id="chartModalSummaryList" style="margin:0; padding-left:14px; font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
-            </ul>
+        <!-- 섹션 B: 실시간 뉴스 및 공시 피드 섹션 -->
+        <div id="modalNewsSection" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:6px 10px; background:rgba(15,23,42,0.6); border-radius:6px; border:1px solid rgba(255,255,255,0.06); font-size:0.75rem;">
+            <span style="color:#38bdf8;">⚡ 네이버 금융 모바일 실시간 공식 피드</span>
+            <button id="btnReloadStockNews" class="btn-sub" style="padding:2px 8px; font-size:0.72rem;">🔄 새로고침</button>
+          </div>
+          <div id="modalNewsList" style="display:flex; flex-direction:column; gap:8px; max-height:360px; overflow-y:auto; padding-right:4px;">
+            <div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.85rem;">실시간 뉴스를 불러오는 중입니다...</div>
           </div>
         </div>
 
@@ -530,6 +610,6 @@
   <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v31) -->
   <script src="stock_master.js?v=31"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=38"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>

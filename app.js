@@ -332,6 +332,8 @@ function initTabs() {
         renderExcelWatchlist();
       } else if (targetId === 'tabInvestorFlow') {
         loadAndRenderFlowRankings();
+      } else if (targetId === 'tabRecommendations') {
+        loadAndRenderRecommendations();
       }
     });
   });
@@ -801,6 +803,21 @@ function initModals() {
     btnCloseChartBtn.addEventListener('click', () => chartModal?.classList.add('hidden'));
   }
 
+  // 모달 내부 [차트] vs [뉴스] 서브 탭 이벤트
+  const btnSubChart = document.getElementById('btnModalSubChart');
+  const btnSubNews = document.getElementById('btnModalSubNews');
+  const btnReloadNews = document.getElementById('btnReloadStockNews');
+
+  if (btnSubChart) btnSubChart.addEventListener('click', () => switchModalSubTab('chart'));
+  if (btnSubNews) btnSubNews.addEventListener('click', () => switchModalSubTab('news'));
+  if (btnReloadNews) {
+    btnReloadNews.addEventListener('click', () => {
+      if (currentChartStock && currentChartStock.code) {
+        fetchAndRenderStockNews(currentChartStock.code, currentChartStock.name);
+      }
+    });
+  }
+
   // 모달 내 리포트 클립보드 복사
   if (btnCopyModalReport) {
     btnCopyModalReport.addEventListener('click', () => {
@@ -1122,11 +1139,128 @@ function handleOpenChartModal(code, name) {
     detailLinkEl.href = `https://m.stock.naver.com/domestic/stock/${officialCode}/total`;
   }
 
-  // 5. 기본 선택된 기간(일봉)으로 차트 이미지 로드
+  // 5. 모달 서브 탭 초기화 (기본: 차트 보기)
+  switchModalSubTab('chart');
+
+  // 6. 기본 선택된 기간(일봉)으로 차트 이미지 로드
   loadNaverChart(officialCode, currentChartPeriod);
 
-  // 6. 모달 표출
+  // 7. 모달 표출
   chartModal.classList.remove('hidden');
+}
+
+// 모달 내부 서브 탭 전환 (차트 vs 뉴스)
+function switchModalSubTab(tab) {
+  const chartSec = document.getElementById('modalChartSection');
+  const newsSec = document.getElementById('modalNewsSection');
+  const btnChart = document.getElementById('btnModalSubChart');
+  const btnNews = document.getElementById('btnModalSubNews');
+
+  if (tab === 'news') {
+    if (chartSec) chartSec.style.display = 'none';
+    if (newsSec) newsSec.style.display = 'block';
+    if (btnChart) { btnChart.classList.remove('active'); btnChart.style.background = 'rgba(30,41,59,0.6)'; }
+    if (btnNews) { btnNews.classList.add('active'); btnNews.style.background = 'linear-gradient(135deg, #2563eb, #1d4ed8)'; }
+    if (currentChartStock && currentChartStock.code) {
+      fetchAndRenderStockNews(currentChartStock.code, currentChartStock.name);
+    }
+  } else {
+    if (chartSec) chartSec.style.display = 'block';
+    if (newsSec) newsSec.style.display = 'none';
+    if (btnChart) { btnChart.classList.add('active'); btnChart.style.background = 'linear-gradient(135deg, #2563eb, #1d4ed8)'; }
+    if (btnNews) { btnNews.classList.remove('active'); btnNews.style.background = 'rgba(30,41,59,0.6)'; }
+  }
+}
+
+// 실시간 종목 뉴스 및 최근 이슈 비동기 패처 (네이버 공식 모바일 API 직통)
+async function fetchAndRenderStockNews(code, name) {
+  const listEl = document.getElementById('modalNewsList');
+  if (!listEl) return;
+  listEl.innerHTML = `<div style="text-align:center; padding:25px; color:#38bdf8; font-size:0.85rem;">⚡ [${name}] 실시간 최신 뉴스 및 공시 불러오는 중...</div>`;
+
+  try {
+    const url = `https://m.stock.naver.com/api/news/stock/${code}?page=1&pageSize=8`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('API response not ok');
+    const data = await res.json();
+
+    const articles = [];
+    if (Array.isArray(data)) {
+      data.forEach(group => {
+        if (group.items && Array.isArray(group.items)) {
+          group.items.forEach(it => articles.push(it));
+        }
+      });
+    }
+
+    if (articles.length === 0) {
+      listEl.innerHTML = `<div style="text-align:center; padding:30px; color:#94a3b8; font-size:0.85rem;">최근 24시간 내 발행된 관련 뉴스가 없습니다.</div>`;
+      return;
+    }
+
+    let html = '';
+    articles.slice(0, 8).forEach(art => {
+      const office = art.officeName || '언론사';
+      const dtStr = formatNewsDateTime(art.datetime);
+      const title = (art.title || '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const body = (art.body || '').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const link = art.mobileNewsUrl || `https://n.news.naver.com/mnews/article/${art.officeId}/${art.articleId}`;
+
+      html += `
+        <a href="${link}" target="_blank" rel="noopener noreferrer" class="news-card-item">
+          <div class="news-card-header">
+            <span class="news-office-badge">${office}</span>
+            <span class="news-time-text">${dtStr}</span>
+          </div>
+          <p class="news-title-text">${title}</p>
+          ${body ? `<p class="news-body-text">${body}</p>` : ''}
+        </a>
+      `;
+    });
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.warn('실시간 뉴스 직접 호출 실패, 사전 캐시 확인:', err);
+    // 캐시 확인
+    if (window.RECOMMEND_DATA && window.RECOMMEND_DATA.cachedNews && window.RECOMMEND_DATA.cachedNews[code]) {
+      const cached = window.RECOMMEND_DATA.cachedNews[code];
+      let html = '';
+      cached.forEach(art => {
+        const dtStr = formatNewsDateTime(art.datetime);
+        html += `
+          <a href="${art.url}" target="_blank" rel="noopener noreferrer" class="news-card-item">
+            <div class="news-card-header">
+              <span class="news-office-badge">${art.officeName || '언론사'}</span>
+              <span class="news-time-text">${dtStr}</span>
+            </div>
+            <p class="news-title-text">${art.title}</p>
+            ${art.body ? `<p class="news-body-text">${art.body}</p>` : ''}
+          </a>
+        `;
+      });
+      listEl.innerHTML = html;
+    } else {
+      listEl.innerHTML = `
+        <div style="text-align:center; padding:20px; color:#cbd5e1; font-size:0.85rem;">
+          <p style="margin-bottom:8px;">네이버 증권 포털에서 실시간 뉴스를 확인하실 수 있습니다.</p>
+          <a href="https://m.stock.naver.com/domestic/stock/${code}/news" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-block; padding:8px 16px; font-size:0.82rem; text-decoration:none;">네이버 실시간 뉴스 전체보기 ↗</a>
+        </div>
+      `;
+    }
+  }
+}
+
+function formatNewsDateTime(dt) {
+  if (!dt) return '';
+  const s = String(dt);
+  if (s.length >= 12) {
+    const year = s.substring(0, 4);
+    const month = s.substring(4, 6);
+    const day = s.substring(6, 8);
+    const hour = s.substring(8, 10);
+    const min = s.substring(10, 12);
+    return `${month}.${day} ${hour}:${min}`;
+  }
+  return s;
 }
 
 function loadNaverChart(code, period) {
@@ -2230,7 +2364,16 @@ function renderExcelWatchlist() {
     });
   } else if (sortMode === 'nameAsc') {
     // 🔤 전체 종목 가나다순 (통합 테이블)
-    groups['전체'] = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+    groups['전체 (가나다순)'] = [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+  } else if (sortMode === 'rateDesc') {
+    // 📈 실시간 상승률 높은순 (통합 테이블)
+    groups['📈 실시간 상승률 높은순'] = [...list].sort((a, b) => (Number(b.rate) || 0) - (Number(a.rate) || 0));
+  } else if (sortMode === 'rateAsc') {
+    // 📉 실시간 하락률 큰순 (통합 테이블)
+    groups['📉 실시간 하락률 큰순'] = [...list].sort((a, b) => (Number(a.rate) || 0) - (Number(b.rate) || 0));
+  } else if (sortMode === 'volumeDesc') {
+    // 📊 거래량 많은순 (통합 테이블)
+    groups['📊 거래량 많은순'] = [...list].sort((a, b) => (Number(b.volume) || 0) - (Number(a.volume) || 0));
   } else {
     // 📅 날짜별 그룹화 (dateDesc / dateAsc)
     list.forEach(item => {
@@ -3255,4 +3398,301 @@ window.loadAndRenderFlowRankings = loadAndRenderFlowRankings;
 window.handleFlowHeaderSort = handleFlowHeaderSort;
 window.onFlowSortSelectChange = onFlowSortSelectChange;
 window.resetFlowSort = resetFlowSort;
+
+// ==========================================
+// 11. [v39 신설] 독립 4번째 탭: 오늘의 추천 종목 & 제도권 리서치 엔진 (100% 무할루시네이션)
+// ==========================================
+let currentRecCategory = 'all'; // 'all', 'broker', 'quant'
+let currentRecSort = 'default';  // 'default', 'upsideDesc', 'goalPriceDesc', 'streakDesc', 'totalNetDesc', 'nameAsc'
+
+function initRecommendations() {
+  // 서브 필터 버튼 이벤트
+  document.querySelectorAll('.rec-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.rec-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentRecCategory = btn.getAttribute('data-rec') || 'all';
+      renderRecommendations();
+    });
+  });
+
+  // 정렬 셀렉터 변경 이벤트
+  const sortSelect = document.getElementById('recommendSortSelect');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (e) => {
+      currentRecSort = e.target.value;
+      renderRecommendations();
+    });
+  }
+
+  // 원래 순위 초기화 버튼
+  const btnReset = document.getElementById('btnResetRecommendSort');
+  if (btnReset) {
+    btnReset.addEventListener('click', () => {
+      currentRecSort = 'default';
+      if (sortSelect) sortSelect.value = 'default';
+      renderRecommendations();
+    });
+  }
+
+  // 새로고침 버튼
+  const btnRefresh = document.getElementById('btnRefreshRecommend');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', async () => {
+      btnRefresh.disabled = true;
+      btnRefresh.innerText = '⏳ 갱신 중...';
+      try {
+        await loadAndRenderRecommendations(true);
+      } finally {
+        btnRefresh.disabled = false;
+        btnRefresh.innerText = '🔄 추천 갱신';
+      }
+    });
+  }
+}
+
+async function loadAndRenderRecommendations(forceReload = false) {
+  const container = document.getElementById('recommendCardsContainer');
+  if (!container) return;
+
+  if (!window.RECOMMEND_DATA || forceReload) {
+    container.innerHTML = `<div style="text-align:center; padding:50px; color:#38bdf8; font-size:0.95rem; grid-column:1/-1;">
+      <div style="font-size:1.8rem; margin-bottom:10px;">📊</div>
+      제도권 증권사 공식 리포트 및 거래소 수급 퀀트 데이터셋 불러오는 중...
+    </div>`;
+
+    try {
+      const url = `daily_recommend_and_news.json?v=${Date.now()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      window.RECOMMEND_DATA = await res.json();
+    } catch (err) {
+      console.warn('추천 데이터 로드 실패, 기본값 구성:', err);
+      window.RECOMMEND_DATA = {
+        updatedAt: '실시간',
+        totalBrokerPicks: 0,
+        totalQuantPicks: 0,
+        brokerRecommendations: [],
+        quantRecommendations: []
+      };
+    }
+  }
+
+  // 헤더 상태 갱신
+  const timeEl = document.getElementById('recommendUpdateTime');
+  const countEl = document.getElementById('recommendCountInfo');
+  if (timeEl && window.RECOMMEND_DATA.updatedAt) {
+    timeEl.innerText = window.RECOMMEND_DATA.updatedAt;
+  }
+  if (countEl) {
+    const bCount = (window.RECOMMEND_DATA.brokerRecommendations || []).length;
+    const qCount = (window.RECOMMEND_DATA.quantRecommendations || []).length;
+    countEl.innerText = `증권사 ${bCount}종목 / 퀀트수급 ${qCount}종목`;
+  }
+
+  renderRecommendations();
+}
+
+function renderRecommendations() {
+  const container = document.getElementById('recommendCardsContainer');
+  if (!container || !window.RECOMMEND_DATA) return;
+
+  const data = window.RECOMMEND_DATA;
+  let items = [];
+
+  // 카테고리 필터링
+  if (currentRecCategory === 'all' || currentRecCategory === 'broker') {
+    (data.brokerRecommendations || []).forEach(it => items.push({ ...it, cardCategory: 'broker' }));
+  }
+  if (currentRecCategory === 'all' || currentRecCategory === 'quant') {
+    (data.quantRecommendations || []).forEach(it => items.push({ ...it, cardCategory: 'quant' }));
+  }
+
+  // 정렬 적용
+  if (currentRecSort === 'upsideDesc') {
+    items.sort((a, b) => (Number(b.upsidePct) || 0) - (Number(a.upsidePct) || 0));
+  } else if (currentRecSort === 'goalPriceDesc') {
+    items.sort((a, b) => (Number(b.goalPrice) || 0) - (Number(a.goalPrice) || 0));
+  } else if (currentRecSort === 'streakDesc') {
+    items.sort((a, b) => {
+      const sA = Math.max(a.bothStreak || 0, a.foreignStreak || 0, a.instStreak || 0, a.streak || 0);
+      const sB = Math.max(b.bothStreak || 0, b.foreignStreak || 0, b.instStreak || 0, b.streak || 0);
+      return sB - sA;
+    });
+  } else if (currentRecSort === 'totalNetDesc') {
+    items.sort((a, b) => (Number(b.totalNetRaw) || 0) - (Number(a.totalNetRaw) || 0));
+  } else if (currentRecSort === 'nameAsc') {
+    items.sort((a, b) => (a.itemName || '').localeCompare(b.itemName || '', 'ko'));
+  }
+
+  if (items.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:60px; color:#94a3b8; grid-column:1/-1;">
+        <p style="font-size:1.1rem; font-weight:700; color:#e2e8f0;">선택하신 조건에 해당하는 추천 종목이 없습니다.</p>
+        <p style="font-size:0.85rem; color:#64748b;">상단 카테고리 필터를 '전체'로 변경해 보세요.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const watchlist = getWatchlist();
+  const watchlistCodes = new Set(watchlist.map(w => w.code));
+  const watchlistNames = new Set(watchlist.map(w => w.name));
+
+  let html = '';
+  items.forEach(it => {
+    const isAdded = watchlistCodes.has(it.itemCode) || watchlistNames.has(it.itemName);
+    const isBroker = it.cardCategory === 'broker';
+
+    if (isBroker) {
+      // 증권사 공인 리서치 카드
+      const upsideStr = it.upsidePct > 0 ? `+${it.upsidePct}%` : `${it.upsidePct}%`;
+      const pdfBtn = it.pdfUrl ? `<a href="${it.pdfUrl}" target="_blank" rel="noopener noreferrer" class="btn-sub" style="padding:6px 10px; font-size:0.75rem; text-decoration:none;" title="증권사 공식 애널리스트 PDF 원본 보기">📄 원본PDF</a>` : '';
+      const addBtn = isAdded
+        ? `<button class="btn-flow-added" disabled style="padding:6px 12px; font-size:0.75rem;">✅ 담김</button>`
+        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}', ${it.goalPrice || 0}, '${(it.recommendReason || '').replace(/'/g, "\\'")}', '${it.brokerName || ''}', 'broker')">➕ 담기</button>`;
+
+      html += `
+        <div class="rec-card rec-card-broker">
+          <div class="rec-card-header">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <span class="rec-badge-broker">🏢 ${it.brokerName} 리서치</span>
+                <span style="font-size:0.7rem; color:#64748b; font-family:monospace;">${it.writeDate || ''}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">${it.itemName}</strong>
+                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${it.itemCode}</span>
+                <span class="badge" style="background:rgba(37,99,235,0.2); color:#93c5fd; font-size:0.7rem; padding:1px 6px;">${it.opinion || 'Buy'}</span>
+              </div>
+            </div>
+            ${it.goalPrice > 0 ? `
+              <div class="rec-upside-badge" title="현재가 대비 목표가 상승여력">
+                <span style="font-size:0.7rem; font-weight:600; opacity:0.85;">상승여력</span>
+                <span>${upsideStr}</span>
+              </div>
+            ` : ''}
+          </div>
+
+          <p class="rec-card-title">${it.title || ''}</p>
+
+          <div class="rec-card-reason">
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.78rem;">
+              <span style="color:#94a3b8;">🎯 목표주가: <strong style="color:#f8fafc;">${it.goalPrice > 0 ? it.goalPrice.toLocaleString() + '원' : '미제시'}</strong></span>
+              <span style="color:#94a3b8;">발행 당시가: <strong style="color:#cbd5e1;">${it.basePrice > 0 ? it.basePrice.toLocaleString() + '원' : '-'}</strong></span>
+            </div>
+            <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
+              <span style="color:#fde047; font-weight:700;">💡 추천 이유: </span>
+              ${it.summary || it.recommendReason || ''}
+            </div>
+          </div>
+
+          <div class="rec-card-footer">
+            ${addBtn}
+            ${pdfBtn}
+            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
+          </div>
+        </div>
+      `;
+    } else {
+      // 퀀트 수급 챔피언 카드
+      const rateNum = Number(it.rate) || 0;
+      const rateColor = rateNum > 0 ? '#ef4444' : (rateNum < 0 ? '#3b82f6' : '#94a3b8');
+      const rateSign = rateNum > 0 ? '+' : '';
+      const streakText = it.streakDesc || '외인·기관 동시 순매수';
+      const addBtn = isAdded
+        ? `<button class="btn-flow-added" disabled style="padding:6px 12px; font-size:0.75rem;">✅ 담김</button>`
+        : `<button class="btn-flow-add" style="padding:6px 12px; font-size:0.75rem;" onclick="addRecommendStockToWatchlist('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}', 0, '${(it.recommendReason || '').replace(/'/g, "\\'")}', '수급퀀트', 'quant')">➕ 담기</button>`;
+
+      html += `
+        <div class="rec-card rec-card-quant">
+          <div class="rec-card-header">
+            <div>
+              <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <span class="rec-badge-quant">⚡ 거래소 퀀트 챔피언</span>
+                <span style="font-size:0.72rem; color:#10b981; font-weight:700;">🔥 ${streakText}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:1.15rem; color:#ffffff; cursor:pointer;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">${it.itemName}</strong>
+                <span style="font-size:0.75rem; color:#93c5fd; font-family:monospace;">${it.itemCode}</span>
+                <span style="font-size:0.8rem; font-weight:700; color:${rateColor};">${rateSign}${rateNum}%</span>
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <span style="font-size:0.7rem; color:#94a3b8; display:block;">합산 집중순매수</span>
+              <strong style="font-size:0.95rem; color:#f8fafc; font-weight:800;">${it.totalFormatted || '-'}</strong>
+            </div>
+          </div>
+
+          <p class="rec-card-title">외인·기관 메이저 수급 강력 유입 팩트 확인</p>
+
+          <div class="rec-card-reason">
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.78rem;">
+              <span style="color:#94a3b8;">외국인 순매수: <strong style="color:#f8fafc;">${it.foreignFormatted || '0'}</strong></span>
+              <span style="color:#94a3b8;">기관 순매수: <strong style="color:#cbd5e1;">${it.instFormatted || '0'}</strong></span>
+            </div>
+            <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.45;">
+              <span style="color:#34d399; font-weight:700;">📊 수급 팩트: </span>
+              ${it.recommendReason || ''}
+            </div>
+          </div>
+
+          <div class="rec-card-footer">
+            ${addBtn}
+            <button class="btn-sub" style="flex:1; padding:6px 10px; font-size:0.75rem;" onclick="handleOpenChartModal('${it.itemCode}', '${it.itemName.replace(/'/g, "\\'")}')">📈 차트·실시간뉴스</button>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  container.innerHTML = html;
+}
+
+function addRecommendStockToWatchlist(code, name, targetPrice, reason, source, type) {
+  const list = getWatchlist();
+  const exists = list.some(item => (item.code && item.code === code) || item.name === name);
+  if (exists) {
+    alert(`ℹ️ [${name}] 종목은 이미 관심종목에 등록되어 있습니다.`);
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const newItem = {
+    name,
+    code: code || getOfficialStockCode(name),
+    date: today,
+    theme: type === 'broker' ? `🏢 ${source} 리서치` : '⚡ 수급퀀트',
+    sector: type === 'broker' ? '증권사 공인 추천' : '거래소 수급 챔피언',
+    price: 0,
+    rate: 0,
+    change: 0,
+    volume: 0,
+    target: targetPrice > 0 ? `${targetPrice.toLocaleString()}원` : '미제시',
+    support: '미제시',
+    resistance: '미제시',
+    stop_loss: '미제시',
+    reason: reason || (type === 'broker' ? `[${source}] 공식 목표가 제시 리포트` : '외인·기관 집중 순매수 포착'),
+    memo: `[추천&리서치] ${source} 픽 등록`
+  };
+
+  list.unshift(newItem);
+  localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+  renderExcelWatchlist();
+  renderRecommendations();
+  alert(`🎯 [${name}] 종목이 '내 관심종목'에 성공적으로 추가되었습니다!\n(목표주가: ${newItem.target})\n\n※ 등록 즉시 실시간 시세가 자동 반영됩니다.`);
+}
+
+// 초기화 바인딩
+document.addEventListener('DOMContentLoaded', () => {
+  initRecommendations();
+});
+
+// 전역 바인딩 (추천 엔진)
+window.loadAndRenderRecommendations = loadAndRenderRecommendations;
+window.renderRecommendations = renderRecommendations;
+window.addRecommendStockToWatchlist = addRecommendStockToWatchlist;
+window.switchModalSubTab = switchModalSubTab;
+window.fetchAndRenderStockNews = fetchAndRenderStockNews;
+
 
