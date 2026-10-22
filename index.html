@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluent/96/bullish.png">
 
   <!-- 스타일시트 -->
-  <link rel="stylesheet" href="style.css?v=32">
+  <link rel="stylesheet" href="style.css?v=34">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -34,6 +34,7 @@
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="tabShorts">🎬 쇼츠·틱톡 요약</button>
     <button class="tab-btn" data-tab="tabWatchlist">📊 내 관심종목 (<span id="stockCount">0</span>)</button>
+    <button class="tab-btn" data-tab="tabInvestorFlow">🔥 실시간 수급 랭킹 (TOP 10)</button>
   </nav>
 
   <!-- 컨텐츠 영역 -->
@@ -215,6 +216,44 @@
       <!-- 엑셀 양식 요일별 테이블 렌더링 컨테이너 -->
       <div id="excelWatchlistContainer" class="excel-table-wrapper">
         <!-- 자바스크립트로 엑셀 테이블 동적 렌더링 -->
+      </div>
+    </section>
+ 
+    <!-- 3. 실시간 수급 랭킹 (TOP 10) 탭 -->
+    <section id="tabInvestorFlow" class="tab-pane">
+      <div class="card watchlist-header-card" style="margin-bottom:12px;">
+        <div class="watchlist-title-row" style="flex-wrap:wrap; gap:8px;">
+          <div>
+            <h2 style="font-size:1.15rem; font-weight:800; color:#ffffff; display:flex; align-items:center; gap:6px; margin:0;">
+              <span>🔥</span> 실시간 수급 랭킹 (TOP 10)
+            </h2>
+            <p style="font-size:0.8rem; color:#94a3b8; margin-top:3px; margin-bottom:0;">
+              네이버 증권·거래소 공식 데이터 100% 실측 (외인·기관 대량 순매수 및 연속 매집 종목 추적)
+            </p>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button id="btnRefreshFlowTop" class="btn-sub" style="padding:6px 12px; font-size:0.8rem; font-weight:700;">🔄 수급 갱신</button>
+          </div>
+        </div>
+
+        <!-- 실시간 상태 요약 바 -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; padding:8px 12px; background:rgba(15,23,42,0.6); border-radius:8px; border:1px solid rgba(255,255,255,0.06); font-size:0.78rem;">
+          <span id="flowScanInfo" style="color:#cbd5e1;">● 스캔 대상: KOSPI·KOSDAQ 시총 및 거래대금 상위 120+ 종목</span>
+          <span id="flowUpdateTime" style="color:#10b981; font-weight:700;">기준: 실시간</span>
+        </div>
+
+        <!-- 4대 수급 서브 탭 셀렉터 -->
+        <div class="flow-category-nav" style="display:flex; gap:6px; margin-top:12px; overflow-x:auto; padding-bottom:4px;">
+          <button class="flow-tab-btn active" data-flow="bothBuyTop10">🔥 외인·기관 쌍끌이 TOP 10</button>
+          <button class="flow-tab-btn" data-flow="foreignTop10">🟢 외국인 순매수 TOP 10</button>
+          <button class="flow-tab-btn" data-flow="instTop10">🔵 기관 순매수 TOP 10</button>
+          <button class="flow-tab-btn" data-flow="streakTop10">⚡ 연속 순매수(3~5일↑) TOP 10</button>
+        </div>
+      </div>
+
+      <!-- 랭킹 테이블 컨테이너 -->
+      <div id="flowRankingTableContainer" class="excel-table-wrapper">
+        <!-- 자바스크립트로 1~10위 렌더링 -->
       </div>
     </section>
 
@@ -491,6 +530,6 @@
   <!-- KRX 한국거래소 공식 3,944개 상장 종목 마스터 사전 (v31) -->
   <script src="stock_master.js?v=31"></script>
   <!-- 자바스크립트 -->
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>

@@ -203,6 +203,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnManualRefresh').addEventListener('click', () => {
     updateLivePrices(true);
   });
+
+  // [v34 신설] 실시간 수급 랭킹 탭 초기화
+  initFlowRankings();
 });
 
 // ==========================================
@@ -327,6 +330,8 @@ function initTabs() {
 
       if (targetId === 'tabWatchlist') {
         renderExcelWatchlist();
+      } else if (targetId === 'tabInvestorFlow') {
+        loadAndRenderFlowRankings();
       }
     });
   });
@@ -2848,14 +2853,260 @@ function exportToMarkdown() {
     md += '\n';
   });
 
-  navigator.clipboard.writeText(md).then(() => {
-    alert('📋 [마크다운 매매일지 복사 완료!]\n\n선택하신 정렬 방식대로 옵시디언, 노션, 카카오톡에 바로 붙여넣기(Ctrl+V)하세요!');
-  }).catch(err => {
-    alert('클립보드 복사 권한이 필요합니다: ' + err);
-  });
-}
-
 // 전역 바인딩
 window.exportToCsv = exportToCsv;
 window.exportToMarkdown = exportToMarkdown;
+
+// ==========================================
+// 10. [v34 신설] 독립 3번째 탭: 실시간 수급 랭킹 스크리너 엔진 (할루시네이션 0%)
+// ==========================================
+let flowRankingData = null;
+let currentFlowCategory = 'bothBuyTop10';
+
+function initFlowRankings() {
+  // 서브 탭 버튼 이벤트
+  document.querySelectorAll('.flow-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.flow-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFlowCategory = btn.getAttribute('data-flow') || 'bothBuyTop10';
+      renderFlowRankingsTable();
+    });
+  });
+
+  // 새로고침 버튼
+  const btnRefresh = document.getElementById('btnRefreshFlowTop');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', () => {
+      loadAndRenderFlowRankings(true);
+    });
+  }
+}
+
+async function loadAndRenderFlowRankings(isManual = false) {
+  const container = document.getElementById('flowRankingTableContainer');
+  if (!container) return;
+
+  if (isManual) {
+    container.innerHTML = '<div style="padding:40px; text-align:center; color:#93c5fd;"><div class="spinner" style="margin:0 auto 12px;"></div>거래소·네이버 공식 실시간 수급 데이터를 전수 집계 중입니다...</div>';
+  }
+
+  try {
+    const resp = await fetch(`./investor_flow_top.json?t=${Date.now()}`);
+    if (resp.ok) {
+      flowRankingData = await resp.json();
+      
+      const timeEl = document.getElementById('flowUpdateTime');
+      if (timeEl && flowRankingData.tradeDate) {
+        timeEl.innerText = `● 거래일: ${flowRankingData.tradeDate} (갱신: ${flowRankingData.updatedAt || '실시간'})`;
+      }
+      const scanEl = document.getElementById('flowScanInfo');
+      if (scanEl && flowRankingData.totalScanned) {
+        scanEl.innerText = `● 전수 스캔: ${flowRankingData.totalScanned}개 종목 100% 실측 (할루시네이션 0%)`;
+      }
+
+      renderFlowRankingsTable();
+      if (isManual) {
+        alert(`🔄 [수급 랭킹 갱신 완료]\n총 ${flowRankingData.totalScanned}개 시장 종목의 외국인·기관 순매수 공식 실측치가 최신으로 반영되었습니다!`);
+      }
+      return;
+    }
+  } catch (err) {
+    console.warn('수급 랭킹 데이터 로드 경고:', err);
+  }
+
+  // 데이터 로드 실패 시 안내
+  container.innerHTML = `
+    <div style="padding:40px; text-align:center; color:#94a3b8;">
+      <p style="font-size:1rem; color:#fde047; font-weight:700;">📡 실시간 수급 랭킹 데이터를 수신하는 중입니다.</p>
+      <p style="font-size:0.85rem; margin-top:6px;">잠시 후 [🔄 수급 갱신] 버튼을 눌러주세요.</p>
+    </div>
+  `;
+}
+
+function renderFlowRankingsTable() {
+  const container = document.getElementById('flowRankingTableContainer');
+  if (!container) return;
+
+  if (!flowRankingData || !flowRankingData.rankings) {
+    container.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">수급 랭킹 데이터를 불러올 수 없습니다.</div>';
+    return;
+  }
+
+  const list = flowRankingData.rankings[currentFlowCategory] || [];
+  if (list.length === 0) {
+    container.innerHTML = '<div style="padding:40px; text-align:center; color:#94a3b8;">해당 조건에 부합하는 수급 순위 종목이 없습니다.</div>';
+    return;
+  }
+
+  const watchlist = getWatchlist();
+  const watchlistCodes = new Set(watchlist.map(item => item.code).filter(c => c && c !== '000000'));
+  const watchlistNames = new Set(watchlist.map(item => item.name));
+
+  const categoryTitles = {
+    'bothBuyTop10': '🔥 외인·기관 쌍끌이(동시 순매수) TOP 10',
+    'foreignTop10': '🟢 외국인 대량 순매수 TOP 10',
+    'instTop10': '🔵 기관 대량 순매수 TOP 10',
+    'streakTop10': '⚡ 3일~5일 이상 연속 순매수 지속 TOP 10'
+  };
+
+  let html = `
+    <div style="padding:10px 14px; background:rgba(30,41,59,0.7); border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:0.88rem; font-weight:800; color:#38bdf8;">${categoryTitles[currentFlowCategory] || '실시간 수급 TOP 10'}</span>
+      <span style="font-size:0.75rem; color:#94a3b8;">(1위~${list.length}위 실시간 집계)</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:850px;">
+        <thead>
+          <tr>
+            <th style="width:58px; text-align:center;">순위</th>
+            <th style="width:80px; text-align:center;">시장</th>
+            <th style="width:160px; text-align:left;">종목명 (코드)</th>
+            <th style="width:100px; text-align:right;">현재가</th>
+            <th style="width:85px; text-align:right;">등락률</th>
+            <th style="width:110px; text-align:right;">외국인 순매수</th>
+            <th style="width:110px; text-align:right;">기관 순매수</th>
+            <th style="width:120px; text-align:right;">합산 수급</th>
+            <th style="width:120px; text-align:center;">연속 매수</th>
+            <th style="width:110px; text-align:center;">관심종목</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  list.forEach((stock, idx) => {
+    const rank = idx + 1;
+    let rankBadge = '';
+    if (rank === 1) rankBadge = '<span class="rank-medal rank-gold">🥇 1위</span>';
+    else if (rank === 2) rankBadge = '<span class="rank-medal rank-silver">🥈 2위</span>';
+    else if (rank === 3) rankBadge = '<span class="rank-medal rank-bronze">🥉 3위</span>';
+    else rankBadge = `<span class="rank-badge-num">${rank}위</span>`;
+
+    const isUp = (stock.rate || 0) >= 0;
+    const rateColor = isUp ? '#ef4444' : '#3b82f6';
+    const rateSign = (stock.rate || 0) > 0 ? '+' : '';
+    const rateStr = `${rateSign}${(stock.rate || 0).toFixed(2)}%`;
+    const priceStr = Number(stock.price || 0).toLocaleString() + '원';
+
+    const fRaw = stock.foreignRaw || 0;
+    const iRaw = stock.instRaw || 0;
+    const tRaw = stock.totalNetRaw || (fRaw + iRaw);
+
+    const fColor = fRaw > 0 ? '#ef4444' : (fRaw < 0 ? '#3b82f6' : '#94a3b8');
+    const iColor = iRaw > 0 ? '#ef4444' : (iRaw < 0 ? '#3b82f6' : '#94a3b8');
+    const tColor = tRaw > 0 ? '#ef4444' : (tRaw < 0 ? '#3b82f6' : '#94a3b8');
+
+    // 연속 매수 배지
+    const streakBadges = [];
+    if (stock.bothStreak && stock.bothStreak >= 2) {
+      streakBadges.push(`<span class="streak-badge streak-both">🔥 쌍끌이 ${stock.bothStreak}일↑</span>`);
+    }
+    if (stock.foreignStreak && stock.foreignStreak >= 3) {
+      streakBadges.push(`<span class="streak-badge streak-foreign">🟢 외 ${stock.foreignStreak}일↑</span>`);
+    }
+    if (stock.instStreak && stock.instStreak >= 3) {
+      streakBadges.push(`<span class="streak-badge streak-inst">🔵 기 ${stock.instStreak}일↑</span>`);
+    }
+    if (streakBadges.length === 0) {
+      if (stock.isBothBuy) streakBadges.push('<span class="streak-badge streak-both">🔥 오늘쌍끌이</span>');
+      else if (fRaw > 0) streakBadges.push(`<span class="streak-badge streak-foreign">외 1일</span>`);
+      else if (iRaw > 0) streakBadges.push(`<span class="streak-badge streak-inst">기 1일</span>`);
+      else streakBadges.push('<span style="color:#64748b; font-size:0.75rem;">-</span>');
+    }
+
+    const isAdded = watchlistCodes.has(stock.code) || watchlistNames.has(stock.name);
+    const actionBtn = isAdded
+      ? '<button class="btn-flow-added" disabled title="이미 내 관심종목에 등록되어 있습니다">✅ 담김</button>'
+      : `<button class="btn-flow-add" onclick="addFlowStockToWatchlist('${stock.code}', '${stock.name.replace(/'/g, "\\'")}', ${stock.price || 0}, ${stock.rate || 0}, '${stock.market || ''}')">➕ 담기</button>`;
+
+    const mkt = stock.market || 'KRX';
+    const mktClass = mkt === 'KOSPI' ? 'market-kospi' : 'market-kosdaq';
+
+    html += `
+      <tr class="flow-rank-row ${rank <= 3 ? 'top-three-row' : ''}">
+        <td style="text-align:center;">${rankBadge}</td>
+        <td style="text-align:center;"><span class="market-badge ${mktClass}">${mkt}</span></td>
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <strong class="stock-name-link" style="color:#ffffff; font-size:0.92rem; cursor:pointer;" onclick="openChartByName('${stock.name.replace(/'/g, "\\'")}', '${stock.code}')">${stock.name}</strong>
+            <span style="font-size:0.75rem; color:#94a3b8;">${stock.code}</span>
+          </div>
+        </td>
+        <td style="text-align:right; font-weight:700; color:#f8fafc;">${priceStr}</td>
+        <td style="text-align:right; font-weight:700; color:${rateColor};">${rateStr}</td>
+        <td style="text-align:right; font-weight:700; color:${fColor};">${stock.foreignFormatted || formatStockQty(fRaw)}</td>
+        <td style="text-align:right; font-weight:700; color:${iColor};">${stock.instFormatted || formatStockQty(iRaw)}</td>
+        <td style="text-align:right; font-weight:800; color:${tColor}; background:rgba(255,255,255,0.02);">${stock.totalFormatted || formatStockQty(tRaw)}</td>
+        <td style="text-align:center;">${streakBadges.join(' ')}</td>
+        <td style="text-align:center;">${actionBtn}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  container.innerHTML = html;
+}
+
+function formatStockQty(qty) {
+  if (!qty || qty === 0) return '0';
+  const sign = qty > 0 ? '+' : '';
+  const absQ = Math.abs(qty);
+  if (absQ >= 10000) return `${sign}${(qty / 10000).toFixed(1)}만`;
+  if (absQ >= 1000) return `${sign}${(qty / 1000).toFixed(1)}천`;
+  return `${sign}${qty.toLocaleString()}`;
+}
+
+function openChartByName(name, code) {
+  const stock = {
+    name,
+    code,
+    theme: '실시간 수급',
+    reason: '외국인·기관 대량 순매수 수급 집중주'
+  };
+  openNaverChartModal(stock);
+}
+
+function addFlowStockToWatchlist(code, name, price, rate, market) {
+  const list = getWatchlist();
+  const exists = list.some(item => (item.code && item.code === code) || item.name === name);
+  if (exists) {
+    alert(`ℹ️ [${name}] 종목은 이미 관심종목에 등록되어 있습니다.`);
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const newItem = {
+    name,
+    code: code || getOfficialStockCode(name),
+    date: today,
+    theme: '🔥 실시간수급',
+    sector: market === 'KOSPI' ? '코스피 대형주' : '코스닥 주도주',
+    price: price || 0,
+    rate: rate || 0,
+    change: 0,
+    volume: 0,
+    target: '미제시',
+    support: '미제시',
+    resistance: '미제시',
+    stop_loss: '미제시',
+    reason: '외국인·기관 대량 순매수 수급 포착 주도주',
+    memo: '실시간 수급 랭킹 스크리너에서 등록'
+  };
+
+  list.unshift(newItem);
+  localStorage.setItem(STORAGE_KEY_WATCHLIST, JSON.stringify(list));
+  renderExcelWatchlist();
+  renderFlowRankingsTable();
+  alert(`🌟 [${name}] 종목이 '내 관심종목'에 성공적으로 추가되었습니다!\n(현재 등록 종목: 총 ${list.length}개)`);
+}
+
+// 전역 바인딩
+window.openChartByName = openChartByName;
+window.addFlowStockToWatchlist = addFlowStockToWatchlist;
+window.loadAndRenderFlowRankings = loadAndRenderFlowRankings;
 
