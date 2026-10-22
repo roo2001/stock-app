@@ -3080,38 +3080,38 @@ function renderFlowRankingsTable() {
     </div>
 
     <!-- 1~10위 테이블 -->
-    <div style="overflow-x:auto;">
-      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse; min-width:920px;">
+    <div style="overflow-x:auto; width:100%;">
+      <table class="excel-table flow-ranking-table" style="width:100%; border-collapse:collapse;">
         <thead>
           <tr>
-            <th style="width:62px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('default')" title="기본 순위순 정렬">
+            <th style="width:52px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('default')" title="기본 순위순 정렬">
               순위 ${getSortIndicator('default')}
             </th>
-            <th style="width:78px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('market')" title="시장별 정렬 (KOSPI/KOSDAQ)">
+            <th style="width:68px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('market')" title="시장별 정렬 (KOSPI/KOSDAQ)">
               시장 ${getSortIndicator('market')}
             </th>
-            <th style="width:160px; text-align:left; cursor:pointer;" onclick="handleFlowHeaderSort('name')" title="종목명 가나다순 정렬">
+            <th style="text-align:left; cursor:pointer;" onclick="handleFlowHeaderSort('name')" title="종목명 가나다순 정렬">
               종목명 (코드) ${getSortIndicator('name')}
             </th>
-            <th style="width:105px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('price')" title="현재가 기준 정렬">
+            <th style="width:96px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('price')" title="현재가 기준 정렬">
               현재가 ${getSortIndicator('price')}
             </th>
-            <th style="width:85px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('rate')" title="등락률 기준 정렬">
+            <th style="width:80px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('rate')" title="등락률 기준 정렬">
               등락률 ${getSortIndicator('rate')}
             </th>
-            <th style="width:115px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('foreign')" title="외국인 순매수량 기준 정렬">
+            <th style="width:105px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('foreign')" title="외국인 순매수량 기준 정렬">
               외국인 순매수 ${getSortIndicator('foreign')}
             </th>
-            <th style="width:115px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('inst')" title="기관 순매수량 기준 정렬">
+            <th style="width:105px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('inst')" title="기관 순매수량 기준 정렬">
               기관 순매수 ${getSortIndicator('inst')}
             </th>
-            <th style="width:125px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('total')" title="외인+기관 합산 순매수량 기준 정렬">
+            <th style="width:115px; text-align:right; cursor:pointer;" onclick="handleFlowHeaderSort('total')" title="외인+기관 합산 순매수량 기준 정렬">
               합산 수급 ${getSortIndicator('total')}
             </th>
-            <th style="width:145px; min-width:140px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('streak')" title="연속 매수일수 기준 정렬">
+            <th style="width:130px; text-align:center; cursor:pointer;" onclick="handleFlowHeaderSort('streak')" title="연속 매수일수 기준 정렬">
               연속 매수 ${getSortIndicator('streak')}
             </th>
-            <th style="width:100px; text-align:center;">관심종목</th>
+            <th style="width:88px; text-align:center;">관심종목</th>
           </tr>
         </thead>
         <tbody>
